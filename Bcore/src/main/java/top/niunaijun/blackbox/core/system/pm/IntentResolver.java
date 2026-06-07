@@ -39,7 +39,16 @@ import java.util.Set;
 import top.niunaijun.blackbox.utils.Slog;
 
 /**
- * {@hide}
+ * Abstract resolver for matching {@link Intent} objects against a set of {@link IntentFilter}
+ * entries within the virtual package management system.
+ * <p>
+ * Maintains indexed lookup maps for actions, schemes, MIME types, and typed actions to enable
+ * efficient intent resolution. This is the core dispatch mechanism that determines which
+ * virtual components (activities, services, receivers, providers) can handle a given intent.
+ *
+ * @param <F> the filter info type, extending {@link BPackage.IntentInfo}
+ * @param <R> the result type returned after resolution
+ * @hide
  */
 public abstract class IntentResolver<F extends BPackage.IntentInfo, R extends Object> {
     final private static String TAG = "IntentResolver";
@@ -47,6 +56,11 @@ public abstract class IntentResolver<F extends BPackage.IntentInfo, R extends Ob
     final private static boolean localLOGV = DEBUG || false;
     final private static boolean localVerificationLOGV = DEBUG || false;
 
+    /**
+     * Registers an intent filter into the resolver's lookup maps (schemes, types, actions).
+     *
+     * @param f the intent filter info to register
+     */
     public void addFilter(F f) {
         if (localLOGV) {
             Slog.v(TAG, "Adding filter: " + f);
@@ -68,6 +82,14 @@ public abstract class IntentResolver<F extends BPackage.IntentInfo, R extends Ob
         }
     }
 
+    /**
+     * Compares two intent filters for equality based on their actions, categories,
+     * data schemes, and data scheme-specific parts.
+     *
+     * @param f1 the first intent filter
+     * @param f2 the second intent filter
+     * @return {@code true} if both filters have identical matching criteria
+     */
     public static boolean filterEquals(IntentFilter f1, IntentFilter f2) {
         int s1 = f1.countActions();
         int s2 = f2.countActions();
@@ -126,6 +148,12 @@ public abstract class IntentResolver<F extends BPackage.IntentInfo, R extends Ob
         return res;
     }
 
+    /**
+     * Finds all registered filters that match the given intent filter's criteria.
+     *
+     * @param matching the intent filter to match against
+     * @return a list of matching filters, or {@code null} if none found
+     */
     public ArrayList<F> findFilters(IntentFilter matching) {
         if (matching.countDataSchemes() == 1) {
             // Fast case.
@@ -151,6 +179,11 @@ public abstract class IntentResolver<F extends BPackage.IntentInfo, R extends Ob
         }
     }
 
+    /**
+     * Removes a filter from the resolver's internal list and all lookup maps.
+     *
+     * @param f the intent filter info to remove
+     */
     public void removeFilter(F f) {
         removeFilterInternal(f);
         mFilters.remove(f);
@@ -176,6 +209,19 @@ public abstract class IntentResolver<F extends BPackage.IntentInfo, R extends Ob
         }
     }
 
+    /**
+     * Dumps the resolver's lookup maps to a PrintWriter for debugging.
+     *
+     * @param out               the writer to dump to
+     * @param titlePrefix       prefix string for the section title
+     * @param title             the section title
+     * @param prefix            indentation prefix for entries
+     * @param map               the filter map to dump
+     * @param packageName       if non-null, only show filters for this package
+     * @param printFilter       if {@code true}, also dump the raw IntentFilter
+     * @param collapseDuplicates if {@code true}, collapse duplicate filters into counts
+     * @return {@code true} if any output was printed
+     */
     boolean dumpMap(PrintWriter out, String titlePrefix, String title,
             String prefix, ArrayMap<String, F[]> map, String packageName,
             boolean printFilter, boolean collapseDuplicates) {
@@ -268,19 +314,33 @@ public abstract class IntentResolver<F extends BPackage.IntentInfo, R extends Ob
     }
 
     /**
-     * Returns an iterator allowing filters to be removed.
+     * Returns an iterator that supports proper removal of filters from the internal maps.
+     *
+     * @return an iterator over registered filters with removal support
      */
     public Iterator<F> filterIterator() {
         return new IteratorWrapper(mFilters.iterator());
     }
 
     /**
-     * Returns a read-only set of the filters.
+     * Returns an unmodifiable set of all registered filters.
+     *
+     * @return a read-only view of the registered filters
      */
     public Set<F> filterSet() {
         return Collections.unmodifiableSet(mFilters);
     }
 
+    /**
+     * Queries all filters from the given list arrays that match the specified intent.
+     *
+     * @param intent       the intent to resolve
+     * @param resolvedType the resolved MIME type of the intent
+     * @param defaultOnly  if {@code true}, only filters with CATEGORY_DEFAULT are returned
+     * @param listCut      list of filter arrays to search through
+     * @param userId       the virtual user ID to resolve for
+     * @return a list of matching results
+     */
     public List<R> queryIntentFromList(Intent intent, String resolvedType, boolean defaultOnly,
             ArrayList<F[]> listCut, int userId) {
         ArrayList<R> resultList = new ArrayList<R>();
@@ -300,6 +360,18 @@ public abstract class IntentResolver<F extends BPackage.IntentInfo, R extends Ob
         return resultList;
     }
 
+    /**
+     * Resolves the given intent against all registered filters.
+     * <p>
+     * Performs a multi-cut resolution strategy: first by MIME type, then by URI scheme,
+     * and finally by action. Results are filtered and deduplicated before returning.
+     *
+     * @param intent       the intent to resolve
+     * @param resolvedType the resolved MIME type of the intent
+     * @param defaultOnly  if {@code true}, only filters with CATEGORY_DEFAULT are returned
+     * @param userId       the virtual user ID to resolve for
+     * @return a list of matching results, ordered by priority
+     */
     public List<R> queryIntent(Intent intent, String resolvedType, boolean defaultOnly,
             int userId) {
         String scheme = intent.getScheme();
@@ -402,32 +474,55 @@ public abstract class IntentResolver<F extends BPackage.IntentInfo, R extends Ob
     }
 
     /**
-     * Control whether the given filter is allowed to go into the result
-     * list.  Mainly intended to prevent adding multiple filters for the
-     * same target object.
+     * Controls whether a given filter is allowed to appear in the result list.
+     * Subclasses can override this to prevent duplicate filters for the same target.
+     *
+     * @param filter the candidate filter
+     * @param dest   the current result list
+     * @return {@code true} to allow the filter (default), {@code false} to reject it
      */
     protected boolean allowFilterResult(F filter, List<R> dest) {
         return true;
     }
 
     /**
-     * Returns whether the object associated with the given filter is
-     * "stopped", that is whether it should not be included in the result
-     * if the intent requests to excluded stopped objects.
+     * Checks whether the object associated with the given filter is in a "stopped" state.
+     * Stopped filters are excluded from results when the intent excludes stopped objects.
+     *
+     * @param filter the filter to check
+     * @param userId the virtual user ID
+     * @return {@code true} if the filter is stopped
      */
     protected boolean isFilterStopped(F filter, int userId) {
         return false;
     }
 
     /**
-     * Returns whether this filter is owned by this package. This must be
-     * implemented to provide correct filtering of Intents that have
-     * specified a package name they are to be delivered to.
+     * Checks whether the given filter is owned by the specified package.
+     * Required for correct filtering when an intent specifies a target package name.
+     *
+     * @param packageName the package name to check against
+     * @param filter      the filter to test
+     * @return {@code true} if the filter belongs to the given package
      */
     protected abstract boolean isPackageForFilter(String packageName, F filter);
 
+    /**
+     * Creates a new array of the given size for storing filter entries.
+     *
+     * @param size the desired array size
+     * @return a new array of type F with the specified size
+     */
     protected abstract F[] newArray(int size);
 
+    /**
+     * Creates a result object for a matched filter. Default implementation returns the filter itself.
+     *
+     * @param filter the matched filter
+     * @param match  the match quality score
+     * @param userId the virtual user ID
+     * @return the result object, or {@code null} to skip this match
+     */
     @SuppressWarnings("unchecked")
     protected R newResult(F filter, int match, int userId) {
         return (R)filter;

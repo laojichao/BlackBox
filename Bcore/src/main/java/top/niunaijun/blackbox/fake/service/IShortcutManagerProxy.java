@@ -17,35 +17,56 @@ import top.niunaijun.blackbox.utils.MethodParameterUtils;
 import top.niunaijun.blackbox.utils.compat.ParceledListSliceCompat;
 
 /**
- * Created by Milk on 4/5/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
- * 未实现，全部拦截
+ * Proxy for the Android {@code shortcut} system service.
+ * <p>
+ * Intercepts all shortcut management operations including creation, removal,
+ * and query methods. Most operations are either intercepted with package name
+ * replacement or return safe default/stub values to avoid side effects in
+ * the virtual environment.
  */
 public class IShortcutManagerProxy extends BinderInvocationStub {
 
+    /**
+     * Constructs a new proxy by acquiring the real shortcut manager binder service.
+     */
     public IShortcutManagerProxy() {
         super(BRServiceManager.get().getService(Context.SHORTCUT_SERVICE));
     }
 
+    /**
+     * Returns the underlying shortcut manager service interface.
+     *
+     * @return the real {@code IShortcutService} binder interface
+     */
     @Override
     protected Object getWho() {
         return BRIShortcutServiceStub.get().asInterface(BRServiceManager.get().getService(Context.SHORTCUT_SERVICE));
     }
 
+    /**
+     * Injects this proxy into the system service registry.
+     *
+     * @param baseInvocation  the original service binder object
+     * @param proxyInvocation the proxy binder object to register
+     */
     @Override
     protected void inject(Object baseInvocation, Object proxyInvocation) {
         replaceSystemService(Context.SHORTCUT_SERVICE);
     }
 
+    /**
+     * Checks whether the current environment is invalid for this proxy.
+     *
+     * @return always {@code false}, indicating the environment is always valid
+     */
     @Override
     public boolean isBadEnv() {
         return false;
     }
 
+    /**
+     * Binds package-aware method hooks for shortcut query and management operations.
+     */
     @Override
     protected void onBindMethod() {
         super.onBindMethod();
@@ -70,46 +91,106 @@ public class IShortcutManagerProxy extends BinderInvocationStub {
         });
     }
 
+    /**
+     * Hook that intercepts {@code requestPinShortcut} and always returns {@code true}.
+     */
     @ProxyMethod("requestPinShortcut")
     public static class RequestPinShortcut extends MethodHook {
+        /**
+         * @param who    the target object
+         * @param method the original method
+         * @param args   the method arguments
+         * @return always {@code true}
+         * @throws Throwable if invocation fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return true;
         }
     }
 
+    /**
+     * Hook that intercepts {@code setDynamicShortcuts} and always returns {@code true}.
+     */
     @ProxyMethod("setDynamicShortcuts")
     public static class SetDynamicShortcuts extends MethodHook {
+        /**
+         * @param who    the target object
+         * @param method the original method
+         * @param args   the method arguments
+         * @return always {@code true}
+         * @throws Throwable if invocation fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return true;
         }
     }
 
+    /**
+     * Hook that intercepts {@code addDynamicShortcuts} and always returns {@code true}.
+     */
     @ProxyMethod("addDynamicShortcuts")
     public static class AddDynamicShortcuts extends MethodHook {
+        /**
+         * @param who    the target object
+         * @param method the original method
+         * @param args   the method arguments
+         * @return always {@code true}
+         * @throws Throwable if invocation fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return true;
         }
     }
 
+    /**
+     * Hook that intercepts {@code createShortcutResultIntent} and returns an empty {@link Intent}.
+     */
     @ProxyMethod("createShortcutResultIntent")
     public static class CreateShortcutResultIntent extends MethodHook {
+        /**
+         * @param who    the target object
+         * @param method the original method
+         * @param args   the method arguments
+         * @return a new empty {@link Intent}
+         * @throws Throwable if invocation fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return new Intent();
         }
     }
 
+    /**
+     * Hook that intercepts {@code pushDynamicShortcut} and returns 0 (success).
+     */
     @ProxyMethod("pushDynamicShortcut")
     public static class pushDynamicShortcut extends MethodHook {
+        /**
+         * @param who    the target object
+         * @param method the original method
+         * @param args   the method arguments
+         * @return always 0
+         * @throws Throwable if invocation fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return 0;
         }
     }
 
+    /**
+     * Intercepts all method calls, replacing all application package names
+     * in arguments before delegation.
+     *
+     * @param proxy  the proxy instance
+     * @param method the method being invoked
+     * @param args   the method arguments
+     * @return the result of the delegated method call
+     * @throws Throwable if the underlying method invocation fails
+     */
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         MethodParameterUtils.replaceAllAppPkg(args);

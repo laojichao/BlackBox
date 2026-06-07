@@ -44,12 +44,18 @@ import top.niunaijun.blackbox.utils.compat.ActivityManagerCompat;
 import static android.content.pm.PackageManager.GET_ACTIVITIES;
 
 /**
- * Created by Milk on 4/5/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Virtual implementation of the Android activity back stack management.
+ * Manages the lifecycle and navigation of activities within the virtual environment,
+ * including task (affinity) management, launch modes, and intent flag handling.
+ *
+ * <p>Intercepts activity launches and redirects them through proxy stub activities
+ * ({@link top.niunaijun.blackbox.proxy.ProxyManifest}) hosted in the host process. Supports
+ * all standard Android launch modes: {@code standard}, {@code singleTop}, {@code singleTask},
+ * and {@code singleInstance}, as well as flags like {@code FLAG_ACTIVITY_CLEAR_TOP} and
+ * {@code FLAG_ACTIVITY_NEW_TASK}.</p>
+ *
+ * <p>Synchronizes task state with the real Android {@link android.app.ActivityManager} to
+ * maintain consistent recent-tasks ordering.</p>
  */
 public class ActivityStack {
     public static final String TAG = "ActivityStack";
@@ -75,14 +81,34 @@ public class ActivityStack {
         }
     };
 
+    /**
+     * Constructs a new {@link ActivityStack} and obtains a reference to the host's {@link ActivityManager}.
+     */
     public ActivityStack() {
         mAms = (ActivityManager) BlackBoxCore.getContext().getSystemService(Context.ACTIVITY_SERVICE);
     }
 
+    /**
+     * Checks whether the given intent contains a specific flag.
+     *
+     * @param intent the intent to check
+     * @param flag   the flag bit to test
+     * @return true if the intent contains the flag
+     */
     public boolean containsFlag(Intent intent, int flag) {
         return (intent.getFlags() & flag) != 0;
     }
 
+    /**
+     * Starts multiple activities in sequence within the virtual environment.
+     *
+     * @param userId        the virtual user ID
+     * @param intents       array of intents to start
+     * @param resolvedTypes array of MIME types corresponding to each intent
+     * @param resultTo      the token of the calling activity; may be null
+     * @param options       activity start options bundle; may be null
+     * @return 0 on success
+     */
     public int startActivitiesLocked(int userId, Intent[] intents, String[] resolvedTypes, IBinder resultTo, Bundle options) {
         if (intents == null) {
             throw new NullPointerException("intents is null");
@@ -99,6 +125,21 @@ public class ActivityStack {
         return 0;
     }
 
+    /**
+     * Starts a single activity within the virtual environment. Resolves the target activity,
+     * determines the correct task based on launch mode and task affinity, and either creates a
+     * new task, reuses an existing one, or delivers a new intent to an existing instance.
+     *
+     * @param userId       the virtual user ID
+     * @param intent       the intent to start
+     * @param resolvedType the MIME type of the intent
+     * @param resultTo     the token of the calling activity; may be null
+     * @param resultWho    the identifier for the result recipient
+     * @param requestCode  the request code for {@code startActivityForResult}; -1 if not used
+     * @param flags        additional start flags
+     * @param options      activity start options bundle; may be null
+     * @return 0 on success
+     */
     public int startActivityLocked(int userId, Intent intent, String resolvedType, IBinder resultTo, String resultWho, int requestCode, int flags, Bundle options) {
         synchronized (mTasks) {
             synchronizeTasks();
@@ -454,6 +495,15 @@ public class ActivityStack {
         }
     }
 
+    /**
+     * Callback invoked when an activity has been created by the proxy host.
+     * Registers the activity in the appropriate task and removes it from the launching set.
+     *
+     * @param processRecord the process hosting the activity
+     * @param taskId        the Android task ID
+     * @param token         the IBinder token assigned to the activity
+     * @param record        the {@link ActivityRecord} for the created activity
+     */
     public void onActivityCreated(ProcessRecord processRecord, int taskId, IBinder
             token, ActivityRecord record) {
         synchronized (mLaunchingActivities) {
@@ -476,6 +526,12 @@ public class ActivityStack {
         }
     }
 
+    /**
+     * Callback invoked when an activity is resumed. Moves the activity to the top of its task.
+     *
+     * @param userId the virtual user ID
+     * @param token  the IBinder token of the resumed activity
+     */
     public void onActivityResumed(int userId, IBinder token) {
         synchronized (mTasks) {
             synchronizeTasks();
@@ -489,6 +545,12 @@ public class ActivityStack {
         }
     }
 
+    /**
+     * Callback invoked when an activity is destroyed. Removes it from the task.
+     *
+     * @param userId the virtual user ID
+     * @param token  the IBinder token of the destroyed activity
+     */
     public void onActivityDestroyed(int userId, IBinder token) {
         synchronized (mTasks) {
             synchronizeTasks();
@@ -502,6 +564,12 @@ public class ActivityStack {
         }
     }
 
+    /**
+     * Callback invoked when an activity finishes. Marks the activity record as finished.
+     *
+     * @param userId the virtual user ID
+     * @param token  the IBinder token of the finishing activity
+     */
     public void onFinishActivity(int userId, IBinder token) {
         synchronized (mTasks) {
             synchronizeTasks();
@@ -514,6 +582,13 @@ public class ActivityStack {
         }
     }
 
+    /**
+     * Returns the package name of the activity that started the given activity.
+     *
+     * @param token  the IBinder token of the target activity
+     * @param userId the virtual user ID
+     * @return the calling package name, or the host package if the caller is unknown
+     */
     public String getCallingPackage(IBinder token, int userId) {
         synchronized (mTasks) {
             synchronizeTasks();
@@ -528,6 +603,13 @@ public class ActivityStack {
         }
     }
 
+    /**
+     * Returns the component name of the activity that started the given activity.
+     *
+     * @param token  the IBinder token of the target activity
+     * @param userId the virtual user ID
+     * @return the calling activity's component name, or a proxy activity component if unknown
+     */
     public ComponentName getCallingActivity(IBinder token, int userId) {
         synchronized (mTasks) {
             synchronizeTasks();

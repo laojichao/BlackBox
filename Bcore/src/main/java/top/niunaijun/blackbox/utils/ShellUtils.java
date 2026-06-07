@@ -6,10 +6,19 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.List;
 
+/**
+ * Utility class for executing shell commands on the device. Supports both root
+ * and non-root command execution, single and multiple commands, and captures
+ * command output and exit codes. Commands are executed via {@code Runtime.exec()}.
+ */
 public class ShellUtils {
+    /** Command to start a root shell session. */
     public static final String COMMAND_SU = "su";
+    /** Command to start a standard shell session. */
     public static final String COMMAND_SH = "sh";
+    /** Command to exit a shell session. */
     public static final String COMMAND_EXIT = "exit\n";
+    /** Line separator used when writing commands to the shell process. */
     public static final String COMMAND_LINE_END = "\n";
 
 
@@ -19,9 +28,10 @@ public class ShellUtils {
 
 
     /**
-     * check whether has root permission
+     * Checks whether the device has root access by attempting to execute
+     * an {@code echo root} command with root privileges.
      *
-     * @return
+     * @return {@code true} if the root command executed successfully (exit code 0)
      */
     public static boolean checkRootPermission() {
         return execCommand("echo root", true, false).result == 0;
@@ -29,11 +39,11 @@ public class ShellUtils {
 
 
     /**
-     * execute shell command, default return result msg
+     * Executes a single shell command and returns the result with output messages.
      *
-     * @param command command
-     * @param isRoot  whether need to run with root
-     * @return
+     * @param command the shell command to execute
+     * @param isRoot whether to execute with root privileges
+     * @return the {@link CommandResult} containing the exit code and output
      * @see ShellUtils#execCommand(String[], boolean, boolean)
      */
     public static CommandResult execCommand(String command, boolean isRoot) {
@@ -42,11 +52,11 @@ public class ShellUtils {
 
 
     /**
-     * execute shell commands, default return result msg
+     * Executes a list of shell commands sequentially and returns the result with output messages.
      *
-     * @param commands command list
-     * @param isRoot   whether need to run with root
-     * @return
+     * @param commands the list of shell commands to execute
+     * @param isRoot whether to execute with root privileges
+     * @return the {@link CommandResult} containing the exit code and output
      * @see ShellUtils#execCommand(String[], boolean, boolean)
      */
     public static CommandResult execCommand(List<String> commands, boolean isRoot) {
@@ -54,11 +64,11 @@ public class ShellUtils {
     }
 
     /**
-     * execute shell commands, default return result msg
+     * Executes an array of shell commands sequentially and returns the result with output messages.
      *
-     * @param commands command array
-     * @param isRoot   whether need to run with root
-     * @return
+     * @param commands the array of shell commands to execute
+     * @param isRoot whether to execute with root privileges
+     * @return the {@link CommandResult} containing the exit code and output
      * @see ShellUtils#execCommand(String[], boolean, boolean)
      */
     public static CommandResult execCommand(String[] commands, boolean isRoot) {
@@ -67,12 +77,12 @@ public class ShellUtils {
 
 
     /**
-     * execute shell command
+     * Executes a single shell command with control over root access and output capture.
      *
-     * @param command         command
-     * @param isRoot          whether need to run with root
-     * @param isNeedResultMsg whether need result msg
-     * @return
+     * @param command the shell command to execute
+     * @param isRoot whether to execute with root privileges
+     * @param isNeedResultMsg whether to capture the command's standard output
+     * @return the {@link CommandResult} containing the exit code and optionally the output
      * @see ShellUtils#execCommand(String[], boolean, boolean)
      */
     public static CommandResult execCommand(String command, boolean isRoot, boolean isNeedResultMsg) {
@@ -81,12 +91,12 @@ public class ShellUtils {
 
 
     /**
-     * execute shell commands
+     * Executes a list of shell commands sequentially with control over root access and output capture.
      *
-     * @param commands        command list
-     * @param isRoot          whether need to run with root
-     * @param isNeedResultMsg whether need result msg
-     * @return
+     * @param commands the list of shell commands to execute
+     * @param isRoot whether to execute with root privileges
+     * @param isNeedResultMsg whether to capture the commands' standard output
+     * @return the {@link CommandResult} containing the exit code and optionally the output
      * @see ShellUtils#execCommand(String[], boolean, boolean)
      */
     public static CommandResult execCommand(List<String> commands, boolean isRoot, boolean isNeedResultMsg) {
@@ -94,15 +104,15 @@ public class ShellUtils {
     }
 
     /**
-     * execute shell commands
+     * Executes an array of shell commands sequentially. This is the core execution method
+     * that all other overloads delegate to. Commands are written to the shell process's
+     * stdin, and the exit code is captured after the process completes.
      *
-     * @param commands        command array
-     * @param isRoot          whether need to run with root
-     * @param isNeedResultMsg whether need result msg
-     * @return <ul>
-     * <li>if isNeedResultMsg is false, {@link CommandResult#successMsg} is null and
-     * <li>if {@link CommandResult#result} is -1, there maybe some excepiton.</li>
-     * </ul>
+     * @param commands the array of shell commands to execute; may be {@code null}
+     * @param isRoot whether to execute via {@code su} (root) or {@code sh} (standard)
+     * @param isNeedResultMsg whether to capture the standard output of the commands
+     * @return the {@link CommandResult} containing the exit code (0 for success, -1 for error)
+     *         and optionally the captured output message
      */
     public static CommandResult execCommand(String[] commands, boolean isRoot, boolean isNeedResultMsg) {
         int result = -1;
@@ -159,34 +169,37 @@ public class ShellUtils {
 
 
     /**
-     * result of command
-     * <ul>
-     * <li>{@link CommandResult#result} means result of command, 0 means normal, else means error, same to excute in
-     * linux shell</li>
-     * <li>{@link CommandResult#successMsg} means success message of command result</li>
-     * </ul>
+     * Represents the result of a shell command execution. Contains the process exit code
+     * and optionally the captured standard output.
      *
      * @author <a href="http://www.trinea.cn" target="_blank">Trinea</a> 2013-5-16
      */
     public static class CommandResult {
 
 
-        /**
-         * result of command
-         **/
+        /** The process exit code; 0 indicates success, non-zero indicates an error. */
         public int result;
-        /**
-         * success message of command result
-         **/
+        /** The captured standard output of the command, or {@code null} if not requested. */
         public String successMsg;
 
 
 
+        /**
+         * Creates a command result with only an exit code.
+         *
+         * @param result the process exit code
+         */
         public CommandResult(int result) {
             this.result = result;
         }
 
 
+        /**
+         * Creates a command result with an exit code and output message.
+         *
+         * @param result the process exit code
+         * @param successMsg the captured standard output, or {@code null}
+         */
         public CommandResult(int result, String successMsg) {
             this.result = result;
             this.successMsg = successMsg;

@@ -8,29 +8,21 @@ import top.niunaijun.blackreflection.annotation.BClassName;
 import top.niunaijun.blackreflection.annotation.BConstructor;
 import top.niunaijun.blackreflection.annotation.BMethod;
 
+/**
+ * Mirror of hidden android.content.pm.PackageParser for Lollipop (API 21).
+ * Provides APK parsing with the older two-parameter parsePackage signature.
+ */
 @BClassName("android.content.pm.PackageParser")
 public interface PackageParserLollipop {
+    /** Creates a new PackageParser instance. */
     @BConstructor
     android.content.pm.PackageParser _new();
 
-//    @BStaticMethod
-//    ActivityInfo generateActivityInfo(PackageParser.Activity service, int flag, PackageUserState state, int userId);
-//
-//    @BStaticMethod
-//    ApplicationInfo generateApplicationInfo(Package p, int flags, PackageUserState state);
-//
-//    @BStaticMethod
-//    PackageInfo generatePackageInfo(Package p, int[] ints, int int1, long long1, long );
-//
-//    @BStaticMethod
-//    ProviderInfo generateProviderInfo(PackageParser.Provider service, int flag, PackageUserState state, int userId);
-//
-//    @BStaticMethod
-//    ServiceInfo generateServiceInfo(PackageParser.Service service, int flag, PackageUserState state, int userId);
-
+    /** Collects certificates for the given package. */
     @BMethod
     void collectCertificates(Package p, int flags);
 
+    /** Parses an APK file with the given flags and returns the Package object. */
     @BMethod
     Package parsePackage(File File0, int flags);
 }

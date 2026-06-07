@@ -80,28 +80,51 @@ import top.niunaijun.blackbox.utils.compat.ContextCompat;
 import top.niunaijun.blackbox.utils.compat.StrictModeCompat;
 
 /**
- * Created by Milk on 3/31/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Virtual activity thread implementation for the BlackBox virtual engine.
+ * <p>
+ * This class acts as the client-side thread manager for applications running inside
+ * the virtual environment. It mirrors Android's internal {@code ActivityThread} by
+ * managing application binding, service creation, content provider installation,
+ * broadcast receiver scheduling, and Xposed module loading for virtual apps.
+ * <p>
+ * Extends {@link IBActivityThread.Stub} to provide Binder-based IPC between
+ * the host process and virtual application processes.
+ *
+ * @author Milk
  */
 public class BActivityThread extends IBActivityThread.Stub {
     public static final String TAG = "BActivityThread";
 
+    /** Singleton instance of BActivityThread. */
     private static BActivityThread sBActivityThread;
+    /** Data object representing the bound application configuration. */
     private AppBindData mBoundApplication;
+    /** The initial Application instance created for the virtual app. */
     private Application mInitialApplication;
+    /** Application configuration including package name, UID, PID, and user ID. */
     private AppConfig mAppConfig;
+    /** List of content providers installed for the virtual application. */
     private final List<ProviderInfo> mProviders = new ArrayList<>();
+    /** Handler bound to the main looper for posting UI-thread work. */
     private final Handler mH = BlackBoxCore.get().getHandler();
+    /** Lock object for synchronizing access to the app configuration. */
     private static final Object mConfigLock = new Object();
 
+    /**
+     * Checks whether this BActivityThread singleton has been initialized.
+     *
+     * @return {@code true} if the singleton instance has been created, {@code false} otherwise
+     */
     public static boolean isThreadInit() {
         return sBActivityThread != null;
     }
 
+    /**
+     * Returns the singleton instance of {@code BActivityThread}, creating it
+     * lazily if necessary (double-checked locking pattern).
+     *
+     * @return the singleton BActivityThread instance
+     */
     public static BActivityThread currentActivityThread() {
         if (sBActivityThread == null) {
             synchronized (BActivityThread.class) {
@@ -113,16 +136,31 @@ public class BActivityThread extends IBActivityThread.Stub {
         return sBActivityThread;
     }
 
+    /**
+     * Returns the current application configuration in a thread-safe manner.
+     *
+     * @return the current {@link AppConfig}, or {@code null} if not yet initialized
+     */
     public static AppConfig getAppConfig() {
         synchronized (mConfigLock) {
             return currentActivityThread().mAppConfig;
         }
     }
 
+    /**
+     * Returns the list of content provider metadata for the current virtual application.
+     *
+     * @return list of {@link ProviderInfo} for the bound application
+     */
     public static List<ProviderInfo> getProviders() {
         return currentActivityThread().mProviders;
     }
 
+    /**
+     * Returns the process name of the currently running virtual application.
+     *
+     * @return the process name string, or {@code null} if not yet bound
+     */
     public static String getAppProcessName() {
         if (getAppConfig() != null) {
             return getAppConfig().processName;
@@ -133,6 +171,11 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
     }
 
+    /**
+     * Returns the package name of the currently running virtual application.
+     *
+     * @return the package name, or {@code null} if not yet initialized
+     */
     public static String getAppPackageName() {
         if (getAppConfig() != null) {
             return getAppConfig().packageName;
@@ -143,34 +186,79 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
     }
 
+    /**
+     * Returns the {@link Application} instance of the current virtual app.
+     *
+     * @return the initial Application, or {@code null} if not yet created
+     */
     public static Application getApplication() {
         return currentActivityThread().mInitialApplication;
     }
 
+    /**
+     * Returns the virtual PID assigned to the current application process.
+     *
+     * @return the virtual PID, or {@code -1} if not initialized
+     */
     public static int getAppPid() {
         return getAppConfig() == null ? -1 : getAppConfig().bpid;
     }
 
+    /**
+     * Returns the virtual UID (BlackBox UID) of the current application.
+     *
+     * @return the virtual UID, or {@link BUserHandle#AID_APP_START} if not initialized
+     */
     public static int getBUid() {
         return getAppConfig() == null ? BUserHandle.AID_APP_START : getAppConfig().buid;
     }
 
+    /**
+     * Returns the application ID component extracted from the virtual UID.
+     *
+     * @return the application ID portion of the virtual UID
+     */
     public static int getBAppId() {
         return BUserHandle.getAppId(getBUid());
     }
 
+    /**
+     * Returns the calling virtual UID, which identifies the remote caller
+     * in cross-process Binder transactions within the virtual environment.
+     *
+     * @return the calling virtual UID, or the host UID if not initialized
+     */
     public static int getCallingBUid() {
         return getAppConfig() == null ? BlackBoxCore.getHostUid() : getAppConfig().callingBUid;
     }
 
+    /**
+     * Returns the real (host) UID of the current application process.
+     *
+     * @return the host UID, or {@code -1} if not initialized
+     */
     public static int getUid() {
         return getAppConfig() == null ? -1 : getAppConfig().uid;
     }
 
+    /**
+     * Returns the virtual user ID under which this application is running.
+     *
+     * @return the user ID, or {@code 0} (default user) if not initialized
+     */
     public static int getUserId() {
         return getAppConfig() == null ? 0 : getAppConfig().userId;
     }
 
+    /**
+     * Initializes this virtual application process with the given configuration.
+     * Sets up the app config and registers a death recipient to clean up on process death.
+     * Throws a {@link RuntimeException} if the process is already bound to a different package.
+     *
+     * @param appConfig the application configuration containing package name, process name,
+     *                  UID, PID, and user ID
+     * @throws RuntimeException if the process is already initialized with a different package
+     */
     public void initProcess(AppConfig appConfig) {
         synchronized (mConfigLock) {
             if (this.mAppConfig != null && !this.mAppConfig.packageName.equals(appConfig.packageName)) {
@@ -198,10 +286,27 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
     }
 
+    /**
+     * Returns whether the application binding process has been completed.
+     *
+     * @return {@code true} if the application has been bound to this thread, {@code false} otherwise
+     */
     public boolean isInit() {
         return mBoundApplication != null;
     }
 
+    /**
+     * Instantiates and initializes a virtual {@link Service} from the given {@link ServiceInfo}.
+     * <p>
+     * If the application is not yet bound, {@link #bindApplication(String, String)} is called first.
+     * The service is loaded via the bound application's class loader, attached to a package context,
+     * and its {@code onCreate()} is invoked.
+     *
+     * @param serviceInfo metadata describing the service class to create
+     * @param token       the Binder token identifying this service instance
+     * @return the created and initialized {@link Service}, or {@code null} if class loading failed
+     * @throws RuntimeException if the service cannot be created due to context or attachment errors
+     */
     public Service createService(ServiceInfo serviceInfo, IBinder token) {
         if (!BActivityThread.currentActivityThread().isInit()) {
             BActivityThread.currentActivityThread().bindApplication(serviceInfo.packageName, serviceInfo.processName);
@@ -241,6 +346,17 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
     }
 
+    /**
+     * Instantiates and initializes a virtual {@link JobService} from the given {@link ServiceInfo}.
+     * <p>
+     * Similar to {@link #createService(ServiceInfo, IBinder)}, but designed for {@code JobService}
+     * instances. After creation and attachment, both {@code onCreate()} and {@code onBind(null)}
+     * are called to prepare the service for job scheduling.
+     *
+     * @param serviceInfo metadata describing the JobService class to create
+     * @return the created and initialized {@link JobService}, or {@code null} if class loading failed
+     * @throws RuntimeException if the service cannot be created due to context or attachment errors
+     */
     public JobService createJobService(ServiceInfo serviceInfo) {
         if (!BActivityThread.currentActivityThread().isInit()) {
             BActivityThread.currentActivityThread().bindApplication(serviceInfo.packageName, serviceInfo.processName);

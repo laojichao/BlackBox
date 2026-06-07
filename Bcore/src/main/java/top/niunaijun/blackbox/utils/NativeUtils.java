@@ -16,16 +16,22 @@ import java.util.zip.ZipFile;
 
 
 /**
- * Created by Milk on 2/24/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Utility class for extracting and copying native shared libraries (.so files) from APK
+ * files to the local filesystem. Scans the APK's ZIP entries for libraries matching the
+ * device's CPU architecture and copies them to the designated native library directory.
  */
 public class NativeUtils {
     public static final String TAG = "VirtualM";
 
+    /**
+     * Extracts all native shared libraries from the given APK file and copies them to the
+     * specified native library directory. Attempts to match the device's CPU architecture first,
+     * then falls back to the default armeabi architecture.
+     *
+     * @param apk the APK file to extract native libraries from
+     * @param nativeLibDir the destination directory for extracted .so files
+     * @throws Exception if an error occurs during extraction
+     */
     public static void copyNativeLib(File apk, File nativeLibDir) throws Exception {
         long startTime = System.currentTimeMillis();
         if (!nativeLibDir.exists()) {

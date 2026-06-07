@@ -3,6 +3,14 @@ package top.niunaijun.blackbox.utils;
 import java.util.LinkedList;
 import java.util.List;
 
+/**
+ * An implementation of a Trie (prefix tree) data structure for efficient string
+ * matching and prefix-based searching. Supports adding individual words or bulk
+ * word lists, and searching for the shortest matching prefix of a given input string.
+ *
+ * <p>This is commonly used for package name or URL matching in the virtual environment
+ * to quickly determine if a string starts with any registered prefix.
+ */
 public class TrieTree {
 
     //The root node of TrieTree
@@ -40,6 +48,12 @@ public class TrieTree {
         }
     }
 
+    /**
+     * Adds a word to the trie. Each character of the word becomes a node in the tree,
+     * and the last character's node is marked as a word end.
+     *
+     * @param word the word to insert into the trie
+     */
     public void add(String word) {
         TrieNode current = root;
         StringBuilder wordBuilder = new StringBuilder();
@@ -59,12 +73,26 @@ public class TrieTree {
         }
     }
 
+    /**
+     * Adds all words from the given list to the trie.
+     *
+     * @param words the list of words to insert
+     */
     public void addAll(List<String> words) {
         for (String word : words) {
             add(word);
         }
     }
 
+    /**
+     * Searches the trie for the shortest prefix of the given word that exists as a
+     * complete word in the trie. The search proceeds character by character and returns
+     * as soon as a word-end node is encountered.
+     *
+     * @param word the input string to search for a matching prefix
+     * @return the matched prefix string if found, or {@code null} if no prefix in the
+     *         trie matches the beginning of the input
+     */
     public String search(String word) {
         TrieNode current = root;
         for (int index = 0; index < word.length(); ++index) {

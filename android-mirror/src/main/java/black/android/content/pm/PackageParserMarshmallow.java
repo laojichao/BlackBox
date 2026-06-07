@@ -9,29 +9,21 @@ import top.niunaijun.blackreflection.annotation.BClassName;
 import top.niunaijun.blackreflection.annotation.BConstructor;
 import top.niunaijun.blackreflection.annotation.BMethod;
 
+/**
+ * Mirror of hidden android.content.pm.PackageParser for Marshmallow (API 23).
+ * Uses the standard no-arg constructor with collectCertificates and parsePackage.
+ */
 @BClassName("android.content.pm.PackageParser")
 public interface PackageParserMarshmallow {
+    /** Creates a new PackageParser instance. */
     @BConstructor
     PackageParser _new();
 
-//    @BStaticMethod
-//    ActivityInfo generateActivityInfo();
-//
-//    @BStaticMethod
-//    ApplicationInfo generateApplicationInfo();
-//
-//    @BStaticMethod
-//    PackageInfo generatePackageInfo();
-//
-//    @BStaticMethod
-//    ProviderInfo generateProviderInfo();
-//
-//    @BStaticMethod
-//    ServiceInfo generateServiceInfo();
-
+    /** Collects certificates for the given package. */
     @BMethod
     void collectCertificates(Package p, int flags);
 
+    /** Parses an APK file with the given flags and returns the Package object. */
     @BMethod
     Package parsePackage(File File0, int int1);
 }

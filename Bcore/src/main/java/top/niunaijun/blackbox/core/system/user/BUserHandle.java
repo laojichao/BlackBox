@@ -22,7 +22,14 @@ import android.os.Parcelable;
 import android.os.Process;
 
 /**
- * Representation of a user on the device.
+ * Parcelable value-type that wraps a virtual user identifier (integer handle).
+ * <p>
+ * Modeled after Android's {@code android.os.UserHandle}, this class provides static
+ * utilities for composing and decomposing UIDs from user IDs and app IDs, querying
+ * whether two UIDs belong to the same user or app, and serializing handles across
+ * Binder boundaries. Pre-defined constants represent well-known user slots such as
+ * {@link #USER_SYSTEM}, {@link #USER_ALL}, and {@link #USER_CURRENT}.
+ * </p>
  */
 public final class BUserHandle implements Parcelable {
     // NOTE: keep logic in sync with system/core/libcutils/multiuser.c
@@ -60,6 +67,7 @@ public final class BUserHandle implements Parcelable {
     public static final int USER_CURRENT_OR_SELF = -3;
 
 
+    /** User ID constant representing the Xposed framework bridge. */
     public static final int USER_XPOSED = -4;
 
     /**
@@ -381,11 +389,23 @@ public final class BUserHandle implements Parcelable {
         return mHandle;
     }
 
+    /**
+     * Returns a human-readable string representation of this user handle.
+     *
+     * @return a string in the format {@code "UserHandle{id}"}
+     */
     @Override
     public String toString() {
         return "UserHandle{" + mHandle + "}";
     }
 
+    /**
+     * Compares this handle with another object for equality. Two handles are equal
+     * if they wrap the same user identifier.
+     *
+     * @param obj the object to compare with
+     * @return {@code true} if {@code obj} is a {@link BUserHandle} with the same identifier
+     */
     @Override
     public boolean equals(Object obj) {
         try {
@@ -398,15 +418,31 @@ public final class BUserHandle implements Parcelable {
         return false;
     }
 
+    /**
+     * Returns a hash code based on the underlying user handle value.
+     *
+     * @return the hash code for this handle
+     */
     @Override
     public int hashCode() {
         return mHandle;
     }
 
+    /**
+     * Returns the Parcelable contents indicator (always 0).
+     *
+     * @return 0, as this Parcelable contains no file descriptors
+     */
     public int describeContents() {
         return 0;
     }
 
+    /**
+     * Writes this handle's user identifier to the given Parcel.
+     *
+     * @param out   the Parcel to write to
+     * @param flags additional flags (unused)
+     */
     public void writeToParcel(Parcel out, int flags) {
         out.writeInt(mHandle);
     }

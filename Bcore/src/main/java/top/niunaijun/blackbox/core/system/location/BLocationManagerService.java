@@ -31,22 +31,42 @@ import top.niunaijun.blackbox.utils.FileUtils;
 import top.niunaijun.blackbox.utils.Slog;
 
 /**
- * Fake location
- * plan1: only GPS invocation is valid and other methods like addressed by cells are intercepted at all.
- * plan2: mock fake neighboring cells from LBS database and modify the result of GPS invocation.
- * plan3: cheat internal application at being given permission to access location information but get data from BB.
- * the final testing condition requires UI demo.
- * Created by BlackBoxing on 3/8/22.
- **/
+ * Virtual location manager service for the BlackBox virtual environment.
+ * <p>
+ * Intercepts and manages location-related requests within virtual containers, supporting
+ * three operating modes: per-package custom location, global shared location, and disabled.
+ * Manages GPS location, cell tower information, and neighboring cell data for virtual apps.
+ * Persists location configurations to disk and supports real-time location update delivery
+ * to registered listeners via a background thread pool.
+ * </p>
+ *
+ * <p>Location modes:
+ * <ul>
+ *   <li>{@code OWN_MODE} - each virtual package has its own independent location config</li>
+ *   <li>{@code GLOBAL_MODE} - all virtual packages share a single global location config</li>
+ *   <li>{@code CLOSE_MODE} - location spoofing is disabled, returns {@code null}</li>
+ * </ul>
+ * </p>
+ */
 public class BLocationManagerService extends IBLocationManagerService.Stub implements ISystemService {
+    /** Logging tag for this service. */
     public static final String TAG = "BLocationManagerService";
 
     private static final BLocationManagerService sService = new BLocationManagerService();
+    /** Per-user, per-package location configuration map. Keyed by userId. */
     private final SparseArray<HashMap<String, BLocationConfig>> mLocationConfigs = new SparseArray<>();
+    /** Global (shared) location configuration used in GLOBAL_MODE. */
     private final BLocationConfig mGlobalConfig = new BLocationConfig();
+    /** Active location listener registrations keyed by their binder token. */
     private final Map<IBinder, LocationRecord> mLocationListeners = new HashMap<>();
+    /** Thread pool for delivering location updates to registered listeners. */
     private final Executor mThreadPool = Executors.newCachedThreadPool();
 
+    /**
+     * Returns the singleton instance of this service.
+     *
+     * @return the global {@link BLocationManagerService} instance
+     */
     public static BLocationManagerService get() {
         return sService;
     }
@@ -68,6 +88,13 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Retrieves the location operating mode for a specific virtual package.
+     *
+     * @param userId the virtual user ID
+     * @param pkg    the package name of the virtual application
+     * @return the location mode constant (e.g., {@code OWN_MODE}, {@code GLOBAL_MODE}, {@code CLOSE_MODE})
+     */
     public int getPattern(int userId, String pkg) {
         synchronized (mLocationConfigs) {
             BLocationConfig config = getOrCreateConfig(userId, pkg);
@@ -75,6 +102,13 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Sets the location operating mode for a specific virtual package.
+     *
+     * @param userId  the virtual user ID
+     * @param pkg     the package name of the virtual application
+     * @param pattern the location mode to set (e.g., {@code OWN_MODE}, {@code GLOBAL_MODE}, {@code CLOSE_MODE})
+     */
     @Override
     public void setPattern(int userId, String pkg, int pattern) {
         synchronized (mLocationConfigs) {
@@ -83,6 +117,13 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Sets the primary cell tower information for a specific virtual package.
+     *
+     * @param userId the virtual user ID
+     * @param pkg    the package name of the virtual application
+     * @param cell   the cell tower data to associate with this package
+     */
     @Override
     public void setCell(int userId, String pkg, BCell cell) {
         synchronized (mLocationConfigs) {
@@ -91,6 +132,13 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Sets the full list of cell towers for a specific virtual package.
+     *
+     * @param userId the virtual user ID
+     * @param pkg    the package name of the virtual application
+     * @param cells  the list of cell tower data
+     */
     @Override
     public void setAllCell(int userId, String pkg, List<BCell> cells) {
         synchronized (mLocationConfigs) {
@@ -99,6 +147,13 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Sets the neighboring cell tower list for a specific virtual package.
+     *
+     * @param userId the virtual user ID
+     * @param pkg    the package name of the virtual application
+     * @param cells  the list of neighboring cell tower data
+     */
     @Override
     public void setNeighboringCell(int userId, String pkg, List<BCell> cells) {
         synchronized (mLocationConfigs) {
@@ -107,6 +162,13 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Retrieves the neighboring cell tower list for a specific virtual package.
+     *
+     * @param userId the virtual user ID
+     * @param pkg    the package name of the virtual application
+     * @return the list of neighboring cell tower data, or {@code null} if not configured
+     */
     @Override
     public List<BCell> getNeighboringCell(int userId, String pkg) {
         synchronized (mLocationConfigs) {
@@ -114,6 +176,11 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Sets the global (shared) cell tower information used in GLOBAL_MODE.
+     *
+     * @param cell the cell tower data for the global configuration
+     */
     @Override
     public void setGlobalCell(BCell cell) {
         synchronized (mGlobalConfig) {
@@ -122,6 +189,11 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Sets the global (shared) full cell tower list used in GLOBAL_MODE.
+     *
+     * @param cells the list of cell tower data for the global configuration
+     */
     @Override
     public void setGlobalAllCell(List<BCell> cells) {
         synchronized (mGlobalConfig) {
@@ -130,6 +202,11 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Sets the global (shared) neighboring cell tower list used in GLOBAL_MODE.
+     *
+     * @param cells the list of neighboring cell tower data for the global configuration
+     */
     @Override
     public void setGlobalNeighboringCell(List<BCell> cells) {
         synchronized (mGlobalConfig) {
@@ -138,6 +215,11 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Retrieves the global (shared) neighboring cell tower list.
+     *
+     * @return the list of neighboring cell tower data from the global configuration
+     */
     @Override
     public List<BCell> getGlobalNeighboringCell() {
         synchronized (mGlobalConfig) {
@@ -145,6 +227,15 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Retrieves the cell tower information for a virtual package based on its location mode.
+     * Returns the per-package cell in OWN_MODE, the global cell in GLOBAL_MODE, or {@code null}
+     * in CLOSE_MODE.
+     *
+     * @param userId the virtual user ID
+     * @param pkg    the package name of the virtual application
+     * @return the cell tower data according to the active mode, or {@code null} if disabled
+     */
     @Override
     public BCell getCell(int userId, String pkg) {
         BLocationConfig config = getOrCreateConfig(userId, pkg);
@@ -159,6 +250,13 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Retrieves the full cell tower list for a virtual package based on its location mode.
+     *
+     * @param userId the virtual user ID
+     * @param pkg    the package name of the virtual application
+     * @return the list of cell tower data according to the active mode, or {@code null} if disabled
+     */
     @Override
     public List<BCell> getAllCell(int userId, String pkg) {
         BLocationConfig config = getOrCreateConfig(userId, pkg);
@@ -173,6 +271,13 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Sets the GPS location for a specific virtual package.
+     *
+     * @param userId   the virtual user ID
+     * @param pkg      the package name of the virtual application
+     * @param location the GPS location data to assign
+     */
     @Override
     public void setLocation(int userId, String pkg, BLocation location) {
         synchronized (mLocationConfigs) {
@@ -181,6 +286,15 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Retrieves the GPS location for a virtual package based on its location mode.
+     * Returns the per-package location in OWN_MODE, the global location in GLOBAL_MODE,
+     * or {@code null} in CLOSE_MODE.
+     *
+     * @param userId the virtual user ID
+     * @param pkg    the package name of the virtual application
+     * @return the GPS location according to the active mode, or {@code null} if disabled
+     */
     @Override
     public BLocation getLocation(int userId, String pkg) {
         BLocationConfig config = getOrCreateConfig(userId, pkg);
@@ -195,6 +309,11 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Sets the global (shared) GPS location used in GLOBAL_MODE.
+     *
+     * @param location the GPS location data for the global configuration
+     */
     @Override
     public void setGlobalLocation(BLocation location) {
         synchronized (mGlobalConfig) {
@@ -203,6 +322,11 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Retrieves the global (shared) GPS location.
+     *
+     * @return the GPS location from the global configuration
+     */
     @Override
     public BLocation getGlobalLocation() {
         synchronized (mGlobalConfig) {
@@ -210,6 +334,19 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Registers a location listener to receive periodic location updates for a virtual package.
+     * <p>
+     * Links the listener binder to a death recipient so it is automatically removed if the
+     * remote process dies. Launches a background task that polls and delivers spoofed
+     * location changes to the listener every few seconds.
+     * </p>
+     *
+     * @param listener    the binder of the remote location listener
+     * @param packageName the virtual package name requesting updates
+     * @param userId      the virtual user ID
+     * @throws RemoteException if the remote binder communication fails
+     */
     @Override
     public void requestLocationUpdates(IBinder listener, String packageName, int userId) throws RemoteException {
         if (listener == null || !listener.pingBinder()) {
@@ -229,6 +366,12 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         addTask(listener);
     }
 
+    /**
+     * Unregisters a location listener so it no longer receives location updates.
+     *
+     * @param listener the binder of the remote location listener to remove
+     * @throws RemoteException if the remote binder communication fails
+     */
     @Override
     public void removeUpdates(IBinder listener) throws RemoteException {
         if (listener == null || !listener.pingBinder()) {
@@ -263,6 +406,10 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         });
     }
 
+    /**
+     * Persists all current location configurations (global and per-user/per-package) to disk
+     * using {@link android.util.AtomicFile} for crash-safe writes.
+     */
     public void save() {
         synchronized (mGlobalConfig) {
             synchronized (mLocationConfigs) {
@@ -294,6 +441,14 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Loads previously persisted location configurations from disk into memory.
+     * <p>
+     * Deserializes the global config and all per-user/per-package configs from the
+     * location configuration file. If the file does not exist or is corrupt, the
+     * in-memory state is left unchanged (or cleared on corruption).
+     * </p>
+     */
     public void loadConfig() {
         Parcel parcel = Parcel.obtain();
         InputStream is = null;
@@ -331,6 +486,11 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    /**
+     * Called when the system is ready. Loads persisted location configs and restarts
+     * background location delivery tasks for any listeners that were registered before
+     * the service was initialized.
+     */
     @Override
     public void systemReady() {
         loadConfig();

@@ -31,12 +31,14 @@ import top.niunaijun.blackbox.utils.Slog;
 import static android.content.pm.PackageManager.GET_META_DATA;
 
 /**
- * Created by Milk on 3/31/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Virtual implementation of the Android {@link android.app.ActivityManager} system service.
+ * Central coordinator for activity, service, broadcast, and content provider operations
+ * within the virtual environment. Delegates to per-user {@link UserSpace} instances that
+ * contain independent {@link ActivityStack} and {@link ActiveServices} managers.
+ *
+ * <p>Implements {@link ISystemService} for lifecycle management. Handles process initialization,
+ * activity lifecycle callbacks, service binding/unbinding, broadcast dispatching, intent sender
+ * tracking, and caller identity resolution -- all scoped to virtual user IDs.</p>
  */
 public class BActivityManagerService extends IBActivityManagerService.Stub implements ISystemService {
     public static final String TAG = "BActivityManagerService";
@@ -45,14 +47,32 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
     private final BPackageManagerService mPms = BPackageManagerService.get();
     private final BroadcastManager mBroadcastManager;
 
+    /**
+     * Returns the singleton instance of this service.
+     *
+     * @return the global BActivityManagerService instance
+     */
     public static BActivityManagerService get() {
         return sService;
     }
 
+    /**
+     * Constructs the service, initializing the broadcast manager with this service
+     * and the package manager.
+     */
     public BActivityManagerService() {
         mBroadcastManager = BroadcastManager.startSystem(this, mPms);
     }
 
+    /**
+     * Starts a service in the virtual environment for the given user.
+     *
+     * @param intent             the intent identifying the service
+     * @param resolvedType       the MIME type of the intent
+     * @param requireForeground whether to start as a foreground service
+     * @param userId             the virtual user ID
+     * @return always null (service component name not tracked)
+     */
     @Override
     public ComponentName startService(Intent intent, String resolvedType, boolean requireForeground, int userId) {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -62,6 +82,14 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         return null;
     }
 
+    /**
+     * Acquires a content provider client for the given provider info. Starts the hosting
+     * process if necessary and delegates to the virtual process's activity thread.
+     *
+     * @param providerInfo the content provider to acquire
+     * @return the IBinder of the content provider client
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public IBinder acquireContentProviderClient(ProviderInfo providerInfo) throws RemoteException {
         int callingPid = Binder.getCallingPid();
@@ -81,6 +109,17 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Sends a broadcast intent to all matching receivers in the virtual environment.
+     * Ensures receiver processes are started and bound, then returns a shadow intent
+     * scoped to the host package.
+     *
+     * @param intent       the broadcast intent
+     * @param resolvedType the MIME type of the intent
+     * @param userId       the virtual user ID
+     * @return a shadow intent with the original action, scoped to the host package
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public Intent sendBroadcast(Intent intent, String resolvedType, int userId) throws RemoteException {
         List<ResolveInfo> resolves = BPackageManagerService.get().queryBroadcastReceivers(intent, GET_META_DATA, resolvedType, userId);
@@ -103,6 +142,15 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         return shadow;
     }
 
+    /**
+     * Returns the IBinder of a running service without binding to it.
+     *
+     * @param intent       the intent identifying the service
+     * @param resolvedType the MIME type of the intent
+     * @param userId       the virtual user ID
+     * @return the service's IBinder, or null if not running
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public IBinder peekService(Intent intent, String resolvedType, int userId) throws RemoteException {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -111,6 +159,14 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Callback invoked when a virtual activity is created. Delegates to the user's activity stack.
+     *
+     * @param taskId         the Android task ID
+     * @param token          the IBinder token of the created activity
+     * @param activityRecord the {@link ActivityRecord} passed as an IBinder
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void onActivityCreated(int taskId, IBinder token, IBinder activityRecord) throws RemoteException {
         int callingPid = Binder.getCallingPid();
@@ -125,6 +181,12 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Callback invoked when a virtual activity is resumed.
+     *
+     * @param token the IBinder token of the resumed activity
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void onActivityResumed(IBinder token) throws RemoteException {
         int callingPid = Binder.getCallingPid();
@@ -138,6 +200,12 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Callback invoked when a virtual activity is destroyed.
+     *
+     * @param token the IBinder token of the destroyed activity
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void onActivityDestroyed(IBinder token) throws RemoteException {
         int callingPid = Binder.getCallingPid();
@@ -151,6 +219,12 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Callback invoked when a virtual activity finishes.
+     *
+     * @param token the IBinder token of the finishing activity
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void onFinishActivity(IBinder token) throws RemoteException {
         int callingPid = Binder.getCallingPid();
@@ -164,6 +238,15 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Returns running process information for the given virtual package. Correlates
+     * virtual process records with the host system's process list.
+     *
+     * @param callerPackage the package name to query
+     * @param userId        the virtual user ID
+     * @return a {@link RunningAppProcessInfo} containing process details
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public RunningAppProcessInfo getRunningAppProcesses(String callerPackage, int userId) throws RemoteException {
         ActivityManager manager = (ActivityManager)
@@ -186,6 +269,14 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         return appProcessInfo;
     }
 
+    /**
+     * Returns running service information for the given virtual package.
+     *
+     * @param callerPackage the package name to query
+     * @param userId        the virtual user ID
+     * @return a {@link RunningServiceInfo} containing service details
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public RunningServiceInfo getRunningServices(String callerPackage, int userId) throws RemoteException {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -194,6 +285,15 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Schedules delivery of a broadcast to registered receivers in the virtual environment.
+     * Delegates to the {@link BroadcastManager} for timeout handling.
+     *
+     * @param intent            the broadcast intent
+     * @param pendingResultData the pending result data for the broadcast
+     * @param userId            the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void scheduleBroadcastReceiver(Intent intent, PendingResultData pendingResultData, int userId) throws RemoteException {
         List<ResolveInfo> resolves = BPackageManagerService.get().queryBroadcastReceivers(intent, GET_META_DATA, null, userId);
@@ -216,11 +316,25 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Signals that a broadcast has finished processing.
+     *
+     * @param data the pending result data of the completed broadcast
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void finishBroadcast(PendingResultData data) throws RemoteException {
         mBroadcastManager.finishBroadcast(data);
     }
 
+    /**
+     * Returns the package name of the activity that started the activity identified by the given token.
+     *
+     * @param token  the IBinder token of the target activity
+     * @param userId the virtual user ID
+     * @return the calling package name
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public String getCallingPackage(IBinder token, int userId) throws RemoteException {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -229,6 +343,14 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Returns the component name of the activity that started the activity identified by the given token.
+     *
+     * @param token  the IBinder token of the target activity
+     * @param userId the virtual user ID
+     * @return the calling activity's component name
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public ComponentName getCallingActivity(IBinder token, int userId) throws RemoteException {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -237,6 +359,14 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Registers a pending intent sender record for the given target binder.
+     *
+     * @param target      the IBinder token of the intent sender
+     * @param packageName the package that owns the intent sender
+     * @param uid         the UID of the calling process
+     * @param userId      the virtual user ID
+     */
     @Override
     public void getIntentSender(IBinder target, String packageName, int uid, int userId) {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -248,6 +378,14 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Returns the package name associated with a pending intent sender.
+     *
+     * @param target the IBinder token of the intent sender
+     * @param userId the virtual user ID
+     * @return the package name, or null if not found
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public String getPackageForIntentSender(IBinder target, int userId) throws RemoteException {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -260,6 +398,14 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         return null;
     }
 
+    /**
+     * Returns the UID associated with a pending intent sender.
+     *
+     * @param target the IBinder token of the intent sender
+     * @param userId the virtual user ID
+     * @return the UID, or -1 if not found
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public int getUidForIntentSender(IBinder target, int userId) throws RemoteException {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -272,6 +418,13 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         return -1;
     }
 
+    /**
+     * Callback when a proxy service receives onStartCommand.
+     *
+     * @param intent the proxy intent
+     * @param userId the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void onStartCommand(Intent intent, int userId) throws RemoteException {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -280,6 +433,14 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Callback when a service binding is released from the proxy side.
+     *
+     * @param proxyIntent the proxy intent identifying the service
+     * @param userId      the virtual user ID
+     * @return the unbind record with service state, or null if not found
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public UnbindRecord onServiceUnbind(Intent proxyIntent, int userId) throws RemoteException {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -288,6 +449,13 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Callback when a proxy service is destroyed.
+     *
+     * @param proxyIntent the proxy intent identifying the service
+     * @param userId      the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void onServiceDestroy(Intent proxyIntent, int userId) throws RemoteException {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -296,6 +464,14 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Stops a service in the virtual environment.
+     *
+     * @param intent       the intent identifying the service
+     * @param resolvedType the MIME type of the intent
+     * @param userId       the virtual user ID
+     * @return 0 in all cases
+     */
     @Override
     public int stopService(Intent intent, String resolvedType, int userId) {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -304,6 +480,16 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Binds to a service in the virtual environment.
+     *
+     * @param service      the intent identifying the service
+     * @param binder       the caller's IBinder for connection tracking
+     * @param resolvedType the MIME type of the intent
+     * @param userId       the virtual user ID
+     * @return the proxy stub intent for the bound service
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public Intent bindService(Intent service, IBinder binder, String resolvedType, int userId) throws RemoteException {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -312,6 +498,13 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Unbinds a service connection in the virtual environment.
+     *
+     * @param binder the caller's IBinder used during bind
+     * @param userId the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void unbindService(IBinder binder, int userId) throws RemoteException {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -320,6 +513,14 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Stops a service identified by its component name and token.
+     *
+     * @param className the component name of the service
+     * @param token     the service's IBinder token
+     * @param userId    the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void stopServiceToken(ComponentName className, IBinder token, int userId) throws RemoteException {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -328,6 +529,15 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Initializes a virtual process for the given package. Starts the process if not already running.
+     *
+     * @param packageName the package name to initialize
+     * @param processName the process name within the package
+     * @param userId      the virtual user ID
+     * @return the {@link AppConfig} for the initialized process, or null on failure
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public AppConfig initProcess(String packageName, String processName, int userId) throws RemoteException {
         ProcessRecord processRecord = BProcessManagerService.get().startProcessLocked(packageName, processName, userId, -1, Binder.getCallingPid());
@@ -336,11 +546,25 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         return processRecord.getClientConfig();
     }
 
+    /**
+     * Restarts a virtual app process.
+     *
+     * @param packageName the package name
+     * @param processName the process name
+     * @param userId      the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void restartProcess(String packageName, String processName, int userId) throws RemoteException {
         BProcessManagerService.get().restartAppProcess(packageName, processName, userId);
     }
 
+    /**
+     * Starts an activity in the virtual environment using the basic intent-only API.
+     *
+     * @param intent the intent to start
+     * @param userId the virtual user ID
+     */
     @Override
     public void startActivity(Intent intent, int userId) {
         UserSpace userSpace = getOrCreateSpaceLocked(userId);
@@ -349,6 +573,20 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Starts an activity with full AMS parameters in the virtual environment.
+     *
+     * @param userId       the virtual user ID
+     * @param intent       the intent to start
+     * @param resolvedType the MIME type of the intent
+     * @param resultTo     the token of the calling activity; may be null
+     * @param resultWho    the identifier for the result recipient
+     * @param requestCode  the request code for result delivery; -1 if not used
+     * @param flags        additional start flags
+     * @param options      activity options bundle; may be null
+     * @return 0 on success
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public int startActivityAms(int userId, Intent intent, String resolvedType, IBinder resultTo, String resultWho, int requestCode, int flags, Bundle options) throws RemoteException {
         UserSpace space = getOrCreateSpaceLocked(userId);
@@ -357,6 +595,17 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Starts multiple activities in sequence in the virtual environment.
+     *
+     * @param userId       the virtual user ID
+     * @param intent       array of intents to start
+     * @param resolvedType array of MIME types for each intent
+     * @param resultTo     the token of the calling activity; may be null
+     * @param options      activity options bundle; may be null
+     * @return 0 on success
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public int startActivities(int userId, Intent[] intent, String[] resolvedType, IBinder resultTo, Bundle options) throws RemoteException {
         UserSpace space = getOrCreateSpaceLocked(userId);
@@ -376,6 +625,9 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
         }
     }
 
+    /**
+     * Initializes the broadcast manager on system ready.
+     */
     @Override
     public void systemReady() {
         mBroadcastManager.startup();

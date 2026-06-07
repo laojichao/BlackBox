@@ -20,21 +20,36 @@ import java.util.AbstractSet;
 import java.util.Iterator;
 
 /**
- * A fast immutable set wrapper for an array that is optimized for non-concurrent iteration.
- * The same iterator instance is reused each time to avoid creating lots of garbage.
- * Iterating over an array in this fashion is 2.5x faster than iterating over a {@link HashSet}
- * so it is worth copying the contents of the set to an array when iterating over it
- * hundreds of times.
+ * A fast immutable set wrapper backed by an array, optimized for non-concurrent iteration.
+ * <p>
+ * Used within the virtual package management intent resolution pipeline to efficiently
+ * iterate over intent categories. Reuses a single iterator instance to minimize garbage
+ * collection overhead, achieving approximately 2.5x faster iteration compared to {@link HashSet}.
+ *
+ * @param <T> the type of elements in this set
  * @hide
  */
 public final class FastImmutableArraySet<T> extends AbstractSet<T> {
     FastIterator<T> mIterator;
     T[] mContents;
 
+    /**
+     * Creates a new immutable set backed by the given array.
+     *
+     * @param contents the array of elements to wrap; must not be modified after construction
+     */
     public FastImmutableArraySet(T[] contents) {
         mContents = contents;
     }
 
+    /**
+     * Returns an iterator over the elements in this set.
+     * <p>
+     * Reuses the same iterator instance on subsequent calls for performance.
+     * Not safe for concurrent iteration.
+     *
+     * @return a reusable iterator over the set elements
+     */
     @Override
     public Iterator<T> iterator() {
         FastIterator<T> it = mIterator;
@@ -47,6 +62,11 @@ public final class FastImmutableArraySet<T> extends AbstractSet<T> {
         return it;
     }
 
+    /**
+     * Returns the number of elements in this set.
+     *
+     * @return the size of the backing array
+     */
     @Override
     public int size() {
         return mContents.length;

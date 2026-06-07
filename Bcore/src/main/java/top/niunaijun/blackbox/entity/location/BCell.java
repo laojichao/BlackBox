@@ -2,29 +2,46 @@ package top.niunaijun.blackbox.entity.location;
 
 import android.os.Parcel;
 import android.os.Parcelable;
-/*
- * created by BlackBoxing at 2022/03/06
- * */
+/**
+ * Parcelable representation of a cellular base station (cell tower) used for
+ * virtual location spoofing within the BlackBox environment.
+ * <p>
+ * Encodes the standard cell identity parameters: MCC (Mobile Country Code),
+ * MNC (Mobile Network Code), LAC (Location Area Code), CID (Cell Identity),
+ * and the radio network type. These fields allow the virtual environment to
+ * report fake cell tower information to applications that query
+ * {@code TelephonyManager} or {@code CellLocation} APIs.
+ * </p>
+ *
+ * @see BLocation
+ * @see BLocationConfig
+ */
 public class BCell implements Parcelable {
     /**
-     * mnc : 1
-     * lac : 41093
-     * ci : 3865320
-     * acc : 1177
-     * location : {"lon":116.343278,"lat":39.531734}
-     * reference blog: https://liuschen.top/2016/09/15/BLocation.html
-     * MCC，Mobile Country Code，移动国家代码（中国的为460）；
-     * MNC，Mobile Network Code，移动网络号码（00移动 01联通 11电信4G）；
-     * LAC/TAC(1~65535)，Location Area Code，位置区域码；
-     * CID/CI( 2G(1~65535), 3G/4G(1~268435455))，Cell Identity，基站编号；
-     * TYPE: Cdma/Lte/Gsm/Wcdma
+     * Cell identity fields reference:
+     * MCC - Mobile Country Code (e.g., 460 for China).
+     * MNC - Mobile Network Code (e.g., 00 for China Mobile, 01 for China Unicom, 11 for China Telecom 4G).
+     * LAC/TAC - Location Area Code, range 1-65535.
+     * CID/CI - Cell Identity, range 1-65535 for 2G, 1-268435455 for 3G/4G.
+     * TYPE - Radio access technology: CDMA, LTE, GSM, or WCDMA.
      */
 
+    /** Mobile Country Code identifying the country of the cell tower (e.g., 460 for China). */
     public int MCC;
+
+    /** Mobile Network Code identifying the carrier network. */
     public int MNC;
+
+    /** Location Area Code (or Tracking Area Code for LTE) identifying the location area. */
     public int LAC;
+
+    /** Cell Identity uniquely identifying the base station within the location area. */
     public int CID;
+
+    /** The radio network type of this cell (use one of the {@code PHONE_TYPE_*} constants). */
     public int TYPE;
+
+    /** Network type is unknown. */
     public static final int NETWORK_TYPE_UNKNOWN = 0;
     /** Current network is GPRS */
     public static final int NETWORK_TYPE_GPRS = 1;
@@ -54,11 +71,17 @@ public class BCell implements Parcelable {
      */
     public static final int PHONE_TYPE_CDMA = 2;
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public int describeContents() {
         return 0;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeInt(this.MCC);
@@ -68,7 +91,19 @@ public class BCell implements Parcelable {
         dest.writeInt(this.TYPE);
     }
 
+    /**
+     * Default constructor for creating an empty {@link BCell}.
+     */
     public  BCell(){}
+
+    /**
+     * Constructs a {@link BCell} with GSM phone type and the specified cell identity fields.
+     *
+     * @param MCC the Mobile Country Code
+     * @param MNC the Mobile Network Code
+     * @param LAC the Location Area Code
+     * @param CID the Cell Identity
+     */
     public BCell(int MCC, int MNC, int LAC, int CID) {
         this.TYPE = this.PHONE_TYPE_GSM;
         this.MCC = MCC;
@@ -77,6 +112,11 @@ public class BCell implements Parcelable {
         this.LAC = LAC;
     }
 
+    /**
+     * Constructs a {@link BCell} by reading its fields from the given {@link Parcel}.
+     *
+     * @param in the Parcel to read from
+     */
     public BCell(Parcel in) {
         this.MCC = in.readInt();
         this.MNC = in.readInt();

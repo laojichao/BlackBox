@@ -20,12 +20,18 @@ import static android.app.Service.START_NOT_STICKY;
 
 
 /**
- * Created by Milk on 4/1/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Dispatcher that manages the lifecycle of virtual {@link Service} instances running
+ * inside the BlackBox virtual environment.
+ * <p>
+ * Acts as an intermediary between the host's proxy services (which handle actual Android
+ * service lifecycle) and virtual application services. It handles binding, starting,
+ * stopping, unbinding, and destroying virtual services. Service instances are cached
+ * by their {@link Intent.FilterComparison} key and are lazily created on first access.
+ * <p>
+ * This class also forwards system callbacks such as configuration changes and
+ * memory pressure events to all active virtual services.
+ *
+ * @author Milk
  */
 public class AppServiceDispatcher {
     public static final String TAG = "AppServiceDispatcher";
@@ -34,12 +40,28 @@ public class AppServiceDispatcher {
 
     private Map<Intent.FilterComparison, ServiceRecord> mService = new HashMap<>();
 
+    /**
+     * Returns the singleton instance of the service dispatcher.
+     *
+     * @return the global {@code AppServiceDispatcher} instance
+     */
     public static AppServiceDispatcher get() {
         return sServiceDispatcher;
     }
 
     private final Handler mHandler = BlackBoxCore.get().getHandler();
 
+    /**
+     * Handles a bind request from the host's proxy service. Retrieves or creates the
+     * virtual service, increments the bind count, and returns the service's IBinder.
+     * If the service already has a cached binder, it is returned directly; on rebind
+     * scenarios, {@link Service#onRebind(Intent)} is called.
+     *
+     * @param proxyIntent the intent from the host proxy service containing the virtual
+     *                    service metadata via {@link ProxyServiceRecord}
+     * @return the {@link IBinder} returned by the virtual service's {@code onBind()},
+     *         or {@code null} if the intent/service info is invalid or binding failed
+     */
     public IBinder onBind(Intent proxyIntent) {
         ProxyServiceRecord serviceRecord = ProxyServiceRecord.create(proxyIntent);
         Intent intent = serviceRecord.mServiceIntent;
@@ -75,6 +97,17 @@ public class AppServiceDispatcher {
         return null;
     }
 
+    /**
+     * Handles a start command from the host's proxy service. Retrieves or creates the
+     * virtual service, sets the start ID, and delegates to {@link Service#onStartCommand(Intent, int, int)}.
+     *
+     * @param proxyIntent the intent from the host proxy service containing the virtual
+     *                    service metadata via {@link ProxyServiceRecord}
+     * @param flags       start flags as passed to {@code onStartCommand}
+     * @param startId     the unique start identifier for this command
+     * @return the service start compatibility constant (e.g., {@code START_STICKY}),
+     *         or {@link Service#START_NOT_STICKY} if the service could not be started
+     */
     public int onStartCommand(Intent proxyIntent, int flags, int startId) {
         ProxyServiceRecord stubRecord = ProxyServiceRecord.create(proxyIntent);
         if (stubRecord.mServiceIntent == null || stubRecord.mServiceInfo == null) {
@@ -98,6 +131,10 @@ public class AppServiceDispatcher {
         return START_NOT_STICKY;
     }
 
+    /**
+     * Destroys all active virtual services and clears the service cache.
+     * Each service's {@code onDestroy()} is called; any exceptions are caught and logged.
+     */
     public void onDestroy() {
         if (mService.size() > 0) {
             for (ServiceRecord record : mService.values()) {
@@ -112,6 +149,11 @@ public class AppServiceDispatcher {
 //        Log.d(TAG, "onDestroy: ");
     }
 
+    /**
+     * Forwards a configuration change event to all active virtual services.
+     *
+     * @param newConfig the new device configuration
+     */
     public void onConfigurationChanged(Configuration newConfig) {
         if (mService.size() > 0) {
             for (ServiceRecord record : mService.values()) {
@@ -125,6 +167,9 @@ public class AppServiceDispatcher {
 //        Log.d(TAG, "onConfigurationChanged");
     }
 
+    /**
+     * Forwards a low-memory event to all active virtual services.
+     */
     public void onLowMemory() {
         if (mService.size() > 0) {
             for (ServiceRecord record : mService.values()) {
@@ -138,6 +183,11 @@ public class AppServiceDispatcher {
 //        Log.d(TAG, "onLowMemory");
     }
 
+    /**
+     * Forwards a trim-memory event to all active virtual services.
+     *
+     * @param level the memory trim level, as defined in {@link android.content.ComponentCallbacks2}
+     */
     public void onTrimMemory(int level) {
         if (mService.size() > 0) {
             for (ServiceRecord record : mService.values()) {
@@ -151,6 +201,17 @@ public class AppServiceDispatcher {
         // Log.d(TAG, "onTrimMemory");
     }
 
+    /**
+     * Handles an unbind request from the host's proxy service. Decreases the connection
+     * count and, if no more clients are bound and no pending start commands remain,
+     * destroys the virtual service and notifies the activity manager.
+     *
+     * @param proxyIntent the intent from the host proxy service containing the virtual
+     *                    service metadata via {@link ProxyServiceRecord}
+     * @return {@code true} if the service indicated it wishes to be rebound in the future
+     *         via {@link Service#onUnbind(Intent)}; always returns {@code false} in the
+     *         current implementation
+     */
     public boolean onUnbind(Intent proxyIntent) {
         ProxyServiceRecord stubRecord = ProxyServiceRecord.create(proxyIntent);
         if (stubRecord.mServiceIntent == null || stubRecord.mServiceInfo == null) {
@@ -188,6 +249,13 @@ public class AppServiceDispatcher {
         return false;
     }
 
+    /**
+     * Returns the cached {@link IBinder} for a previously bound virtual service without
+     * triggering a new bind. Used for peeking at a service's binder.
+     *
+     * @param intent the intent identifying the virtual service
+     * @return the cached {@link IBinder}, or {@code null} if no record exists
+     */
     public IBinder peekService(Intent intent) {
         ServiceRecord record = findRecord(intent);
         if (record == null) {
@@ -196,6 +264,14 @@ public class AppServiceDispatcher {
         return record.getBinder(intent);
     }
 
+    /**
+     * Stops a virtual service by calling its {@code onDestroy()} on the main handler
+     * thread and notifying the activity manager. The service is removed from the cache.
+     * Does nothing if the intent is {@code null}, the record is not found, or the
+     * service has not been started (startId is zero).
+     *
+     * @param intent the intent identifying the virtual service to stop
+     */
     public void stopService(Intent intent) {
         if (intent == null)
             return;

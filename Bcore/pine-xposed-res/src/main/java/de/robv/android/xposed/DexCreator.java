@@ -19,20 +19,40 @@ import static de.robv.android.xposed.XposedHelpers.inputStreamToByteArray;
 
 /**
  * Helper class which can create a very simple .dex file, containing only a class definition
- * with a super class (no methods, fields, ...).
+ * with a super class (no methods, fields, or other members).
+ *
+ * <p>This is used by the Xposed framework to create runtime superclasses for framework classes
+ * (e.g. {@code XResourcesSuperClass}) that allow module code to properly extend Android framework
+ * classes which cannot be directly subclassed due to visibility or class loader constraints.
+ *
+ * <p>The generated dex file defines a single public class that extends the specified superclass,
+ * using the {@code xposed.dummy} package namespace.
  */
 // Dreamland changed: DexCreator is public
 public class DexCreator {
+    /** The default dalvik-cache directory where generated dex files are stored. */
     public static File DALVIK_CACHE = new File(Environment.getDataDirectory(), "dalvik-cache");
 
-    /** Returns the default dex file name for the class. */
+    /**
+     * Returns the default dex file name for a generated super class.
+     *
+     * @param childClz the simple class name used to derive the file name
+     * @return the default dex file in the dalvik-cache directory
+     */
     public static File getDefaultFile(String childClz) {
         return new File(DALVIK_CACHE, "dreamland_" + childClz.substring(childClz.lastIndexOf('.') + 1) + ".dex");
     }
 
     /**
-     * Creates (or returns) the path to a dex file which defines the superclass of {@clz} as extending
-     * {@code realSuperClz}, which by itself must extend {@code topClz}.
+     * Creates (or returns the cached path to) a dex file that defines a generated superclass for
+     * {@code clz}, extending {@code realSuperClz} which must itself extend {@code topClz}.
+     *
+     * @param clz the simple class name to generate a super class for
+     * @param realSuperClz the actual superclass the generated class should extend
+     * @param topClz the required ancestor class that {@code realSuperClz} must extend
+     * @return the path to the generated or cached dex file
+     * @throws IOException if the dex file cannot be created
+     * @throws ClassCastException if {@code realSuperClz} does not extend {@code topClz}
      */
     public static File ensure(String clz, Class<?> realSuperClz, Class<?> topClz) throws IOException {
         if (!topClz.isAssignableFrom(realSuperClz)) {
@@ -46,14 +66,28 @@ public class DexCreator {
         }
     }
 
+    /**
+     * Ensures a dex file exists at the default location that defines a class extending {@code superClz}.
+     *
+     * @param childClz the simple class name used for the generated super class
+     * @param superClz the class to extend
+     * @return the path to the generated or cached dex file
+     * @throws IOException if the dex file cannot be created
+     */
     /** Like {@link #ensure(File, String, String)}, just for the default dex file name. */
     public static File ensure(String childClz, Class<?> superClz) throws IOException {
         return ensure(getDefaultFile(childClz), childClz, superClz.getName());
     }
 
     /**
-     * Makes sure that the given file is a simple dex file containing the given classes.
-     * Creates the file if that's not the case.
+     * Makes sure that the given file is a valid dex file containing the specified class relationship.
+     * Creates or replaces the file if it does not match.
+     *
+     * @param file the target dex file path
+     * @param childClz the fully qualified class name of the child class
+     * @param superClz the fully qualified class name of the super class
+     * @return the path to the validated or newly created dex file
+     * @throws IOException if the dex file cannot be created or read
      */
     public static File ensure(File file, String childClz, String superClz) throws IOException {
         // First check if a valid file exists.
@@ -77,8 +111,14 @@ public class DexCreator {
     }
 
     /**
-     * Checks whether the Dex file fits to the class names.
-     * Assumes that the file has been created with this class.
+     * Checks whether a dex byte array matches the expected child and super class names.
+     * Assumes the dex was created by this class.
+     *
+     * @param dex the dex file content as a byte array
+     * @param childClz the fully qualified child class name
+     * @param superClz the fully qualified super class name
+     * @return {@code true} if the dex contains the expected class names
+     * @throws IOException if the class names cannot be converted to bytes
      */
     public static boolean matches(byte[] dex, String childClz, String superClz) throws IOException {
         boolean childFirst = childClz.compareTo(superClz) < 0;
@@ -105,12 +145,28 @@ public class DexCreator {
         return true;
     }
 
+    /**
+     * Creates a dex byte buffer defining a class named {@code xposed.dummy.<superOf>SuperClass}
+     * that extends {@code superclass}.
+     *
+     * @param superOf the simple class name used to derive the generated class name
+     * @param superclass the class to extend
+     * @return a {@link ByteBuffer} wrapping the generated dex bytes
+     * @throws IOException if the dex cannot be created
+     */
     // Dreamland added
     public static ByteBuffer create(String superOf, Class<?> superclass) throws IOException {
         return ByteBuffer.wrap(create("xposed.dummy." + superOf + "SuperClass", superclass.getName()));
     }
 
-    /** Creates the byte array for the dex file. */
+    /**
+     * Creates the raw byte array for a dex file defining {@code childClz} extending {@code superClz}.
+     *
+     * @param childClz the fully qualified child class name
+     * @param superClz the fully qualified super class name
+     * @return the dex file content as a byte array
+     * @throws IOException if the class names cannot be converted to bytes
+     */
     public static byte[] create(String childClz, String superClz) throws IOException {
         boolean childFirst = childClz.compareTo(superClz) < 0;
         byte[] childBytes = stringToBytes("L" + childClz.replace('.', '/') + ";");

@@ -25,12 +25,12 @@ import top.niunaijun.blackbox.utils.Slog;
 import top.niunaijun.blackbox.utils.compat.PackageParserCompat;
 
 /**
- * Created by Milk on 4/13/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Central registry for all virtual package settings and application UID assignments.
+ * <p>
+ * Manages the lifecycle of {@link BPackageSettings} entries including creation, scanning,
+ * persistence, and removal. Also handles per-package UID allocation and shared user ID
+ * resolution. On startup, scans the app directory structure and deserializes package
+ * configurations from disk.
  */
 /*public*/ class Settings {
     public static final String TAG = "Settings";
@@ -40,6 +40,10 @@ import top.niunaijun.blackbox.utils.compat.PackageParserCompat;
     private final Map<String, SharedUserSetting> mSharedUsers = SharedUserSetting.sSharedUsers;
     private int mCurrUid = 0;
 
+    /**
+     * Creates a new Settings instance, loading persisted UID mappings and shared user
+     * configurations from disk.
+     */
     public Settings() {
         synchronized (mPackages) {
             loadUidLP();
@@ -47,6 +51,16 @@ import top.niunaijun.blackbox.utils.compat.PackageParserCompat;
         }
     }
 
+    /**
+     * Retrieves or creates a {@link BPackageSettings} for the given package name. If the package
+     * already exists, reuses its existing appId and user state. Otherwise, registers a new appId.
+     *
+     * @param name          the package name
+     * @param aPackage      the parsed package from the framework PackageParser
+     * @param installOption the installation options (system, storage, etc.)
+     * @return a new or updated {@link BPackageSettings} entry
+     * @throws RuntimeException if a new appId cannot be registered
+     */
     BPackageSettings getPackageLPw(String name, PackageParser.Package aPackage, InstallOption installOption) {
         BPackageSettings pkgSettings;
         BPackageSettings origSettings = new BPackageSettings();
@@ -70,6 +84,14 @@ import top.niunaijun.blackbox.utils.compat.PackageParserCompat;
         return origSettings;
     }
 
+    /**
+     * Registers an application ID for the given package settings. If the package declares a
+     * shared user ID, it is associated with that shared user; otherwise a new unique appId
+     * is allocated. Persists the UID mapping to disk after registration.
+     *
+     * @param p the package settings to register
+     * @return {@code true} if a valid appId was assigned, {@code false} if allocation failed
+     */
     boolean registerAppIdLPw(BPackageSettings p) {
         boolean createdNew = false;
         String sharedUserId = p.pkg.mSharedUserId;
@@ -163,6 +185,10 @@ import top.niunaijun.blackbox.utils.compat.PackageParserCompat;
         }
     }
 
+    /**
+     * Scans all installed packages in the app root directory and loads their settings from disk.
+     * Should be called during system initialization.
+     */
     public void scanPackage() {
         synchronized (mPackages) {
             File appRootDir = BEnvironment.getAppRootDir();
@@ -177,6 +203,11 @@ import top.niunaijun.blackbox.utils.compat.PackageParserCompat;
         }
     }
 
+    /**
+     * Scans and loads the settings for a single package by name.
+     *
+     * @param packageName the name of the package to scan
+     */
     public void scanPackage(String packageName) {
         synchronized (mPackages) {
             updatePackageLP(BEnvironment.getAppDir(packageName));
@@ -233,6 +264,11 @@ import top.niunaijun.blackbox.utils.compat.PackageParserCompat;
         return getPackageLPw(aPackage.packageName, aPackage, option);
     }
 
+    /**
+     * Removes a package from the internal registry without cleaning up its files on disk.
+     *
+     * @param packageName the name of the package to remove from the registry
+     */
     public void removePackage(String packageName) {
         mPackages.remove(packageName);
     }

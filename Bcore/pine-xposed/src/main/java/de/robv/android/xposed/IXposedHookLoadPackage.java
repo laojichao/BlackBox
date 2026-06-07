@@ -26,9 +26,17 @@ public interface IXposedHookLoadPackage extends IXposedMod {
 	/** @hide */
 	final class Wrapper extends XC_LoadPackage {
 		private final IXposedHookLoadPackage instance;
+
+		/**
+		 * Creates a wrapper that delegates to the given {@link IXposedHookLoadPackage} instance.
+		 *
+		 * @param instance the module's load-package hook implementation
+		 */
 		public Wrapper(IXposedHookLoadPackage instance) {
 			this.instance = instance;
 		}
+
+		/** @hide */
 		@Override
 		public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
 			instance.handleLoadPackage(lpparam);

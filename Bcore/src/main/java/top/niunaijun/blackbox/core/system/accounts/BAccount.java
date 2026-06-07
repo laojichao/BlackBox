@@ -8,21 +8,44 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 
 /**
- * Created by BlackBox on 2022/3/3.
+ * Represents a single account entry within the virtual environment.
+ * Virtualizes the Android {@link android.accounts.Account} system by storing account credentials,
+ * user data, auth tokens, and per-package visibility settings.
+ *
+ * <p>Used by {@link BAccountManagerService} to persist account state across virtual user sessions.
+ * Implements {@link Parcelable} for IPC transport.</p>
  */
 public class BAccount implements Parcelable {
+    /** The underlying Android account (name + type). */
     public Account account;
+    /** The password associated with this account, or null if not set. */
     public String password;
+    /** Key-value pairs of user-defined data attached to this account. */
     public HashMap<String, String> accountUserData = new LinkedHashMap<>();
+    /** Per-package visibility settings for this account. */
     public HashMap<String, Integer> visibility = new LinkedHashMap<>();
+    /** Cached auth tokens keyed by token type. */
     public HashMap<String, String> authTokens = new LinkedHashMap<>();
+    /** Timestamp (millis) of the last successful authentication. */
     public long updateLastAuthenticatedTime;
 
+    /**
+     * Checks whether the given account matches this record.
+     *
+     * @param account the account to compare against
+     * @return true if the account is non-null and equals this record's account
+     */
     public boolean isMatch(Account account) {
         if (account == null) return false;
         return account.equals(this.account);
     }
 
+    /**
+     * Inserts a key-value pair into this account's user data.
+     *
+     * @param key   the data key
+     * @param value the data value
+     */
     public void insertExtra(String key, String value) {
         this.accountUserData.put(key, value);
     }
@@ -42,6 +65,11 @@ public class BAccount implements Parcelable {
         dest.writeLong(this.updateLastAuthenticatedTime);
     }
 
+    /**
+     * Reads this account's fields from a Parcel.
+     *
+     * @param source the Parcel to read from
+     */
     public void readFromParcel(Parcel source) {
         this.account = source.readParcelable(Account.class.getClassLoader());
         this.password = source.readString();
@@ -51,6 +79,7 @@ public class BAccount implements Parcelable {
         this.updateLastAuthenticatedTime = source.readLong();
     }
 
+    /** Creates an empty BAccount. */
     public BAccount() {
     }
 

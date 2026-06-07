@@ -20,9 +20,13 @@ import top.niunaijun.blackboxa.util.toast
 
 
 /**
+ * Activity that displays an OpenStreetMap (OSMdroid) map for selecting a fake GPS location.
  *
- * @Author: BlackBoxing
- * @CreateDate: 2022/3/14
+ * Loads the map centered on the previously configured location (or a default point),
+ * allows the user to tap anywhere on the map to place a marker, and returns the selected
+ * coordinates as the activity result when the back button is pressed.
+ *
+ * Uses [BLocation] as the incoming location model and [GeoPoint] internally for map operations.
  */
 class FollowMyLocationOverlay : AppCompatActivity() {
     val TAG: String = "FollowMyLocationOverlay"
@@ -129,6 +133,11 @@ class FollowMyLocationOverlay : AppCompatActivity() {
         }
     }
 
+    /**
+     * Finishes the activity and returns the selected [GeoPoint] coordinates as the result.
+     *
+     * @param geoPoint the [GeoPoint] containing the selected latitude and longitude.
+     */
     private fun finishWithResult(geoPoint: GeoPoint) {
         intent.putExtra("latitude", geoPoint.latitude)
         intent.putExtra("longitude", geoPoint.longitude)

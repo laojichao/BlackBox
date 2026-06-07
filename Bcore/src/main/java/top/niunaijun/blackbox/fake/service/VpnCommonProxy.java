@@ -13,12 +13,26 @@ import top.niunaijun.blackbox.proxy.ProxyVpnService;
 import top.niunaijun.blackbox.utils.MethodParameterUtils;
 
 /**
- * Created by BlackBox on 2022/2/26.
+ * Common VPN method hooks shared across VPN-related proxies.
+ * <p>
+ * Provides hooks for VPN authorization, preparation, and establishment operations.
+ * Replaces application package names in VPN requests and ensures that VPN
+ * configurations include the host package in their allowed/disallowed application lists.
  */
 public class VpnCommonProxy {
+    /**
+     * Hook that replaces the package name in VPN package authorization requests.
+     */
     @ProxyMethod("setVpnPackageAuthorization")
     public static class setVpnPackageAuthorization extends MethodHook {
 
+        /**
+         * @param who    the target object
+         * @param method the original method
+         * @param args   the method arguments
+         * @return the result of the delegated method call with replaced package name
+         * @throws Throwable if invocation fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             MethodParameterUtils.replaceFirstAppPkg(args);
@@ -26,9 +40,19 @@ public class VpnCommonProxy {
         }
     }
 
+    /**
+     * Hook that replaces the package name in VPN preparation requests.
+     */
     @ProxyMethod("prepareVpn")
     public static class PrepareVpn extends MethodHook {
 
+        /**
+         * @param who    the target object
+         * @param method the original method
+         * @param args   the method arguments
+         * @return the result of the delegated method call with replaced package name
+         * @throws Throwable if invocation fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             MethodParameterUtils.replaceFirstAppPkg(args);
@@ -36,9 +60,20 @@ public class VpnCommonProxy {
         }
     }
 
+    /**
+     * Hook that intercepts VPN establishment, replacing the VPN user with the proxy
+     * service class and ensuring the host package is included in application lists.
+     */
     @ProxyMethod("establishVpn")
     public static class establishVpn extends MethodHook {
 
+        /**
+         * @param who    the target object
+         * @param method the original method
+         * @param args   the method arguments (first element is VpnConfig)
+         * @return the result of the delegated method call with modified VPN config
+         * @throws Throwable if invocation fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             VpnConfigContext vpnConfigContext = BRVpnConfig.get(args[0]);
@@ -49,6 +84,11 @@ public class VpnCommonProxy {
             return method.invoke(who, args);
         }
 
+        /**
+         * Adds the host package to the application list if the virtual app package is present.
+         *
+         * @param applications the list of allowed or disallowed VPN application packages
+         */
         private void handlePackage(List<String> applications) {
             if (applications == null)
                 return;

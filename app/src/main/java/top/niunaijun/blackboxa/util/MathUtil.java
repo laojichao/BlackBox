@@ -3,8 +3,16 @@ package top.niunaijun.blackboxa.util;
 import android.graphics.Point;
 import android.graphics.PointF;
 
+/**
+ * Utility class for 2D geometric calculations including distance, radian, and angle conversions.
+ *
+ * Used primarily by [RockerView] for joystick position and angle computations.
+ */
 public class MathUtil {
 
+    /**
+     * Default constructor.
+     */
     public MathUtil() {
     }
 
@@ -21,6 +29,12 @@ public class MathUtil {
 
     /**
      * Get the distance between two points.
+     *
+     * @param x1 x-coordinate of point A
+     * @param y1 y-coordinate of point A
+     * @param x2 x-coordinate of point B
+     * @param y2 y-coordinate of point B
+     * @return the distance between the two points as an integer
      */
     public static int getDistance(float x1, float y1, float x2, float y2) {
         return (int) Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));

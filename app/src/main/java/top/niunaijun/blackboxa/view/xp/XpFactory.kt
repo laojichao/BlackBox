@@ -5,10 +5,9 @@ import androidx.lifecycle.ViewModelProvider
 import top.niunaijun.blackboxa.data.XpRepository
 
 /**
+ * ViewModelProvider factory for creating [XpViewModel] instances with an injected [XpRepository].
  *
- * @Description:
- * @Author: wukaicheng
- * @CreateDate: 2021/5/2 20:56
+ * @param repo the Xposed module repository used by the created ViewModel
  */
 @Suppress("UNCHECKED_CAST")
 class XpFactory(private val repo:XpRepository): ViewModelProvider.NewInstanceFactory() {

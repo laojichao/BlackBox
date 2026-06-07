@@ -6,10 +6,12 @@ import com.imuxuan.floatingview.FloatingMagnetView
 import top.niunaijun.blackboxa.R
 
 /**
+ * Floating view containing a [RockerView] for virtual joystick-based location manipulation.
  *
- * @Description: rocker parent
- * @Author: kotlinMiku
- * @CreateDate: 2022/3/20 16:58
+ * Extends [FloatingMagnetView] to provide a draggable overlay that captures angle and distance
+ * input from the rocker and forwards it to a [LocationListener] callback.
+ *
+ * @param mContext the application context
  */
 class EnFloatView(mContext: Context) : FloatingMagnetView(mContext) {
 
@@ -48,10 +50,16 @@ class EnFloatView(mContext: Context) : FloatingMagnetView(mContext) {
         return super.onTouchEvent(event)
     }
 
+    /**
+     * Sets the location listener that receives angle and distance values from the rocker.
+     *
+     * @param listener callback invoked with angle (degrees) and distance (scaled units)
+     */
     fun setListener(listener: LocationListener) {
         this.mListener = listener
     }
 
 }
 
+/** Callback type for receiving rocker angle and distance values. */
 typealias LocationListener = (angle: Float, distance: Float) -> Unit

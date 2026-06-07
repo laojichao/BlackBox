@@ -1,13 +1,11 @@
 package top.niunaijun.blackbox.core.system.user;
 
 /**
- * Created by Milk on 4/22/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Enumeration of lifecycle states for a virtual user managed by {@link BUserManagerService}.
  */
 public enum BUserStatus {
-    ENABLE, DISABLE
+    /** The virtual user is active and can run applications. */
+    ENABLE,
+    /** The virtual user is suspended and cannot run applications. */
+    DISABLE
 }

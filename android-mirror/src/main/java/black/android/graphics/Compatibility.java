@@ -4,10 +4,14 @@ import top.niunaijun.blackreflection.annotation.BClassName;
 import top.niunaijun.blackreflection.annotation.BStaticMethod;
 
 /**
- * Created by BlackBox on 2022/2/24.
+ * Mirror of hidden android.graphics.Compatibility.
+ * Provides access to the setTargetSdkVersion method for graphics compatibility.
  */
 @BClassName("android.graphics.Compatibility")
 public interface Compatibility {
+    /**
+     * Set the target SDK version for graphics compatibility decisions.
+     */
     @BStaticMethod
     void setTargetSdkVersion(int targetSdkVersion);
 }

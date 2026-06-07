@@ -22,8 +22,12 @@ import top.niunaijun.blackboxa.util.MathUtil;
 
 
 /**
- * A custom view for game or others.
- * <p/>
+ * A custom SurfaceView-based virtual joystick (rocker) control.
+ *
+ * Renders a circular active area and a draggable rocker knob. The rocker tracks
+ * touch input, computes angle and distance from center, and delivers periodic
+ * callbacks via [RockerListener]. Supports both color-filled and bitmap-based rendering.
+ *
  * Author: GcsSloop
  * Created Date: 16/5/24
  * Copyright (C) 2016 GcsSloop.
@@ -76,7 +80,9 @@ public class RockerView extends SurfaceView implements Runnable, SurfaceHolder.C
 
 
     private RockerListener mListener;
+    /** Event type indicating an immediate touch action response. */
     public static final int EVENT_ACTION = 1;
+    /** Event type indicating a periodic clock-based callback tick. */
     public static final int EVENT_CLOCK = 2;
 
     private int mRefreshCycle = DEFAULT_REFRESH_CYCLE;
@@ -85,14 +91,32 @@ public class RockerView extends SurfaceView implements Runnable, SurfaceHolder.C
 
     /*Life Cycle***********************************************************************************/
 
+    /**
+     * Constructs a RockerView with default attributes.
+     *
+     * @param context the application context
+     */
     public RockerView(Context context) {
         this(context, null);
     }
 
+    /**
+     * Constructs a RockerView with XML attributes.
+     *
+     * @param context the application context
+     * @param attrs   the XML attribute set
+     */
     public RockerView(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
 
+    /**
+     * Constructs a RockerView with XML attributes and a default style.
+     *
+     * @param context      the application context
+     * @param attrs        the XML attribute set
+     * @param defStyleAttr  the default style attribute resource
+     */
     public RockerView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
 
@@ -371,76 +395,166 @@ public class RockerView extends SurfaceView implements Runnable, SurfaceHolder.C
 
     /*Getter Setter********************************************************************************/
 
+    /**
+     * Enables or disables the rendering update loop. When disabled, the surface is not redrawn.
+     *
+     * @param isMove true to allow drawing updates, false to pause rendering
+     */
     public void setCanMove(boolean isMove) {
         this.canMove = isMove;
     }
 
+    /**
+     * Returns the radius of the active area circle in pixels.
+     *
+     * @return the area radius
+     */
     public int getAreaRadius() {
         return mAreaRadius;
     }
 
+    /**
+     * Sets the radius of the active area circle in pixels.
+     *
+     * @param areaRadius the area radius in pixels
+     */
     public void setAreaRadius(int areaRadius) {
         mAreaRadius = areaRadius;
     }
 
+    /**
+     * Returns the radius of the draggable rocker knob in pixels.
+     *
+     * @return the rocker radius
+     */
     public int getRockerRadius() {
         return mRockerRadius;
     }
 
+    /**
+     * Sets the radius of the draggable rocker knob in pixels.
+     *
+     * @param rockerRadius the rocker radius in pixels
+     */
     public void setRockerRadius(int rockerRadius) {
         mRockerRadius = rockerRadius;
     }
 
+    /**
+     * Returns the custom bitmap used for the active area, or null if using color fill.
+     *
+     * @return the area bitmap, or null
+     */
     public Bitmap getAreaBitmap() {
         return mAreaBitmap;
     }
 
+    /**
+     * Sets a custom bitmap for rendering the active area instead of a solid color circle.
+     *
+     * @param areaBitmap the bitmap to use, or null to revert to color fill
+     */
     public void setAreaBitmap(Bitmap areaBitmap) {
         mAreaBitmap = areaBitmap;
     }
 
+    /**
+     * Returns the custom bitmap used for the rocker knob, or null if using color fill.
+     *
+     * @return the rocker bitmap, or null
+     */
     public Bitmap getRockerBitmap() {
         return mRockerBitmap;
     }
 
+    /**
+     * Sets a custom bitmap for rendering the rocker knob instead of a solid color circle.
+     *
+     * @param rockerBitmap the bitmap to use, or null to revert to color fill
+     */
     public void setRockerBitmap(Bitmap rockerBitmap) {
         mRockerBitmap = rockerBitmap;
     }
 
+    /**
+     * Returns the surface drawing refresh cycle in milliseconds.
+     *
+     * @return the refresh cycle in ms
+     */
     public int getRefreshCycle() {
         return mRefreshCycle;
     }
 
+    /**
+     * Sets the surface drawing refresh cycle in milliseconds.
+     *
+     * @param refreshCycle the refresh interval in ms
+     */
     public void setRefreshCycle(int refreshCycle) {
         mRefreshCycle = refreshCycle;
     }
 
+    /**
+     * Returns the listener callback cycle in milliseconds.
+     *
+     * @return the callback cycle in ms
+     */
     public int getCallbackCycle() {
         return mCallbackCycle;
     }
 
+    /**
+     * Sets the interval at which the [RockerListener] is invoked with current angle and distance.
+     *
+     * @param callbackCycle the callback interval in ms
+     */
     public void setCallbackCycle(int callbackCycle) {
         mCallbackCycle = callbackCycle;
     }
 
+    /**
+     * Returns the active area fill color.
+     *
+     * @return the area color as an ARGB integer
+     */
     public int getAreaColor() {
         return mAreaColor;
     }
 
+    /**
+     * Sets the active area fill color and clears any custom area bitmap.
+     *
+     * @param areaColor the ARGB color value
+     */
     public void setAreaColor(int areaColor) {
         mAreaColor = areaColor;
         mAreaBitmap = null;
     }
 
+    /**
+     * Returns the rocker knob fill color.
+     *
+     * @return the rocker color as an ARGB integer
+     */
     public int getRockerColor() {
         return mRockerColor;
     }
 
+    /**
+     * Sets the rocker knob fill color and clears any custom rocker bitmap.
+     *
+     * @param rockerColor the ARGB color value
+     */
     public void setRockerColor(int rockerColor) {
         mRockerColor = rockerColor;
         mRockerBitmap = null;
     }
 
+    /**
+     * Sets the listener that receives periodic rocker angle and distance callbacks.
+     *
+     * @param listener the [RockerListener] to receive events
+     */
     public void setListener(@NonNull RockerListener listener) {
         mListener = listener;
     }
@@ -448,16 +562,16 @@ public class RockerView extends SurfaceView implements Runnable, SurfaceHolder.C
     /*Rocker Listener******************************************************************************/
 
     /**
-     * rocker listener
+     * Listener interface for receiving rocker position change events.
      */
     public interface RockerListener {
 
         /**
-         * you can get some event from this method
+         * Called when the rocker position changes or on periodic callback ticks.
          *
-         * @param eventType       The event type, EVENT_ACTION or EVENT_CLOCK
-         * @param currentAngle    The current angle
-         * @param currentDistance The current distance (px)
+         * @param eventType       the event type: [EVENT_ACTION] for touch events, [EVENT_CLOCK] for periodic ticks
+         * @param currentAngle    the current angle in degrees (0-360, where 0 is up), or -1 if centered
+         * @param currentDistance the current distance from center in pixels
          */
         void callback(int eventType, float currentAngle, float currentDistance);
     }

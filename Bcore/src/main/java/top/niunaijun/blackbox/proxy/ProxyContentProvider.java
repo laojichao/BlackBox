@@ -14,19 +14,36 @@ import top.niunaijun.blackbox.entity.AppConfig;
 import top.niunaijun.blackbox.utils.compat.BundleCompat;
 
 /**
- * Created by Milk on 3/30/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Proxy ContentProvider declared in the host manifest to receive process initialization
+ * calls for virtual apps. When the special method {@code "_Black_|_init_process_"} is
+ * called, it initializes the virtual app's process via {@link BActivityThread} and returns
+ * a binder for IPC communication. Multiple static inner classes (P0-P49) provide distinct
+ * authority entries for concurrent virtual app processes.
+ *
+ * @author Milk
  */
 public class ProxyContentProvider extends ContentProvider {
+    /**
+     * Called when the content provider is created. Returns {@code false} as the actual
+     * initialization is deferred to the {@link #call} method.
+     *
+     * @return always {@code false}
+     */
     @Override
     public boolean onCreate() {
         return false;
     }
 
+    /**
+     * Handles provider calls. When the special initialization method is invoked, extracts
+     * the {@link AppConfig} and initializes the virtual process, returning a binder
+     * for subsequent IPC communication.
+     *
+     * @param method the method name to call
+     * @param arg    optional argument string
+     * @param extras optional Bundle of additional arguments
+     * @return a {@link Bundle} containing the client binder on init, or delegates to super
+     */
     @Nullable
     @Override
     public Bundle call(@NonNull String method, @Nullable String arg, @Nullable Bundle extras) {
@@ -43,29 +60,69 @@ public class ProxyContentProvider extends ContentProvider {
         return super.call(method, arg, extras);
     }
 
+    /**
+     * Not implemented. Returns {@code null}.
+     *
+     * @param uri           the URI to query
+     * @param projection    the columns to return
+     * @param selection     the selection clause
+     * @param selectionArgs the selection arguments
+     * @param sortOrder     the sort order
+     * @return always {@code null}
+     */
     @Nullable
     @Override
     public Cursor query(@NonNull Uri uri, @Nullable String[] projection, @Nullable String selection, @Nullable String[] selectionArgs, @Nullable String sortOrder) {
         return null;
     }
 
+    /**
+     * Not implemented. Returns {@code null}.
+     *
+     * @param uri the URI to query
+     * @return always {@code null}
+     */
     @Nullable
     @Override
     public String getType(@NonNull Uri uri) {
         return null;
     }
 
+    /**
+     * Not implemented. Returns {@code null}.
+     *
+     * @param uri    the content URI
+     * @param values the values to insert
+     * @return always {@code null}
+     */
     @Nullable
     @Override
     public Uri insert(@NonNull Uri uri, @Nullable ContentValues values) {
         return null;
     }
 
+    /**
+     * Not implemented. Returns 0.
+     *
+     * @param uri           the URI to query
+     * @param selection     the selection clause
+     * @param selectionArgs the selection arguments
+     * @return always 0
+     */
     @Override
     public int delete(@NonNull Uri uri, @Nullable String selection, @Nullable String[] selectionArgs) {
         return 0;
     }
 
+    /**
+     * Not implemented. Returns 0.
+     *
+     * @param uri           the URI to query
+     * @param values        the values to update
+     * @param selection     the selection clause
+     * @param selectionArgs the selection arguments
+     * @return always 0
+     */
     @Override
     public int update(@NonNull Uri uri, @Nullable ContentValues values, @Nullable String selection, @Nullable String[] selectionArgs) {
         return 0;

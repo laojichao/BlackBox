@@ -20,10 +20,12 @@ import top.niunaijun.blackboxa.view.base.LoadingActivity
 import top.niunaijun.blackboxa.view.list.ListActivity
 
 /**
+ * Xposed module management screen that displays installed Xposed modules.
  *
- * @Description: xposed模块管理界面
- * @Author: wukaicheng
- * @CreateDate: 2021/5/2 20:25
+ * Shows a list of installed Xposed modules with enable/disable toggles. Users can
+ * tap a module to toggle its enabled state, long-press to uninstall, and use the
+ * floating action button to install new modules from the app list. Module state
+ * changes require a virtual app restart to take effect.
  */
 class XpActivity : LoadingActivity() {
 
@@ -142,6 +144,11 @@ class XpActivity : LoadingActivity() {
 
 
     companion object {
+        /**
+         * Launches the [XpActivity] from the given context.
+         *
+         * @param context the context used to start the activity
+         */
         fun start(context: Context) {
             val intent = Intent(context, XpActivity::class.java)
             context.startActivity(intent)

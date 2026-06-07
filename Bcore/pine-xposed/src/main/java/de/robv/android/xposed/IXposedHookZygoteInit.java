@@ -19,9 +19,13 @@ public interface IXposedHookZygoteInit extends IXposedMod {
 	 */
 	void initZygote(StartupParam startupParam) throws Throwable;
 
-	/** Data holder for {@link #initZygote}. */
+	/**
+	 * Data holder for {@link #initZygote}, containing information about the module and the
+	 * started process.
+	 */
 	final class StartupParam {
 		// Pine changed: Constructor of class StartupParam is public.
+		/** Creates a new empty StartupParam instance. */
 		public StartupParam() {}
 
 		/** The path to the module's APK. */

@@ -16,10 +16,11 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
+ * Manages the floating virtual joystick overlay for fake location movement.
  *
- * @Description:
- * @Author: kotlinMiku
- * @CreateDate: 2022/3/19 19:37
+ * Initializes a draggable [EnFloatView] rocker widget and translates joystick angle/distance
+ * input into GPS coordinate changes using WGS84 ellipsoid earth model calculations.
+ * The rocker attaches/detaches with activity lifecycle events.
  */
 object RockerManager {
 
@@ -30,6 +31,13 @@ object RockerManager {
 
     private const val Eb = 6356725     //   极半径 
 
+    /**
+     * Initializes the floating rocker overlay and registers activity lifecycle callbacks
+     * for attaching/detaching the view.
+     *
+     * @param application the host application instance
+     * @param userId the virtual user ID whose location will be modified
+     */
     fun init(application: Application?, userId: Int) {
 
         if (application == null || !BLocationManager.isFakeLocationEnable()) {

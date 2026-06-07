@@ -6,9 +6,18 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 
 /**
- * Created by BlackBox on 2022/3/21.
+ * Utility class for introspecting and printing the structure of Java classes to standard output.
+ * Provides a human-readable dump of a class's modifiers, constructors, methods, fields,
+ * and inheritance chain. Primarily intended for debugging and development purposes.
  */
 public class ReflectionClass {
+    /**
+     * Prints the full structure of the class identified by the given name, including
+     * its modifiers, superclass, interfaces, constructors, methods, fields, and
+     * the complete extends chain to {@code Object}.
+     *
+     * @param name the fully qualified class name to introspect
+     */
     @SuppressWarnings("rawtypes")
     public static void print(String name) {
         try {
@@ -209,9 +218,10 @@ public class ReflectionClass {
     }
 
     /**
-     * Prints the extends chain for a class
+     * Prints the complete class hierarchy from the given class up to {@code Object},
+     * showing each superclass separated by arrows.
      *
-     * @param cl a class
+     * @param cl the class whose extends chain should be printed
      */
     @SuppressWarnings("rawtypes")
     public static void printExtendsChain(Class cl) {

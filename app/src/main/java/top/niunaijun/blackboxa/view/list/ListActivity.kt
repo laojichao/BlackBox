@@ -20,6 +20,14 @@ import top.niunaijun.blackboxa.util.inflate
 import top.niunaijun.blackboxa.view.base.BaseActivity
 
 
+/**
+ * Activity that displays a searchable list of installed applications or Xposed modules.
+ *
+ * Allows users to select an app from the device's installed applications list.
+ * Supports filtering by name or package name via a search view, and also allows
+ * choosing an APK file from the device storage. Returns the selected package name
+ * or APK URI as the activity result.
+ */
 class ListActivity : BaseActivity() {
 
     private val viewBinding: ActivityListBinding by inflate()
@@ -47,6 +55,9 @@ class ListActivity : BaseActivity() {
         initViewModel()
     }
 
+    /**
+     * Sets up the search view to filter the app list by name or package name as the user types.
+     */
     private fun initSearchView() {
         viewBinding.searchView.setOnQueryTextListener(object : SimpleSearchView.OnQueryTextListener {
             override fun onQueryTextChange(newText: String): Boolean {
@@ -65,6 +76,10 @@ class ListActivity : BaseActivity() {
         })
     }
 
+    /**
+     * Initializes the ViewModel and loads either installed modules or installed apps
+     * based on the "onlyShowXp" intent extra. Observes LiveData for loading state and app list.
+     */
     private fun initViewModel() {
         viewModel = ViewModelProvider(this, InjectionUtil.getListFactory()).get(ListViewModel::class.java)
         val onlyShowXp = intent.getBooleanExtra("onlyShowXp", false)
@@ -102,6 +117,11 @@ class ListActivity : BaseActivity() {
         }
     }
 
+    /**
+     * Filters the displayed app list by matching the query against app names and package names.
+     *
+     * @param newText the search query string to filter by.
+     */
     private fun filterApp(newText: String) {
         val newList = this.appList.filter {
             it.name.contains(newText, true) or it.packageName.contains(newText, true)
@@ -115,6 +135,12 @@ class ListActivity : BaseActivity() {
         }
     }
 
+    /**
+     * Sets the activity result with the selected source (package name or URI) and finishes.
+     * Hides the soft keyboard before finishing.
+     *
+     * @param source the selected package name or APK file URI to return to the caller.
+     */
     private fun finishWithResult(source: String) {
         intent.putExtra("source", source)
         setResult(Activity.RESULT_OK, intent)
@@ -159,6 +185,12 @@ class ListActivity : BaseActivity() {
 
 
     companion object{
+        /**
+         * Starts [ListActivity] from the given context.
+         *
+         * @param context the context used to launch the activity.
+         * @param onlyShowXp if true, displays only installed Xposed modules; if false, shows all installed apps.
+         */
         fun start(context: Context,onlyShowXp:Boolean){
             val intent = Intent(context,ListActivity::class.java)
             intent.putExtra("onlyShowXp",onlyShowXp)

@@ -14,15 +14,22 @@ import top.niunaijun.blackbox.utils.compat.BuildCompat;
 
 
 /**
- * Created by Milk on 3/2/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Foreground service that keeps the BlackBox virtual engine alive in the
+ * background on Android O+.
+ *
+ * <p>On Android Oreo and above, the service promotes itself to the
+ * foreground with a minimal notification to avoid being killed by the
+ * system's background execution limits.  It also starts an inner
+ * {@link DaemonInnerService} that immediately cancels the notification,
+ * effectively hiding it from the user while still satisfying the
+ * foreground-service requirement.</p>
+ *
+ * <p>Uses {@code START_STICKY} so that the system will restart the
+ * service if it is killed.</p>
  */
 public class DaemonService extends Service {
     public static final String TAG = "DaemonService";
+    /** Notification ID derived from the host package name hash. */
     private static final int NOTIFY_ID = BlackBoxCore.getHostPkg().hashCode();
 
     @Override
@@ -35,6 +42,15 @@ public class DaemonService extends Service {
         super.onCreate();
     }
 
+    /**
+     * Handles service start.  Launches the inner helper service and,
+     * on Android O+, promotes this service to the foreground.
+     *
+     * @param intent  the start intent
+     * @param flags   additional data about the start request
+     * @param startId a unique start request identifier
+     * @return {@link #START_STICKY} to keep the service alive
+     */
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Intent innerIntent = new Intent(this, DaemonInnerService.class);
@@ -51,12 +67,21 @@ public class DaemonService extends Service {
         Log.d(TAG, "onDestroy");
     }
 
+    /**
+     * Builds and displays a minimal foreground notification on Android O+.
+     */
     private void showNotification() {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(getApplicationContext(), getPackageName() + ".blackbox_core")
                 .setPriority(NotificationCompat.PRIORITY_MAX);
         startForeground(NOTIFY_ID, builder.build());
     }
 
+    /**
+     * Inner helper service that cancels the foreground notification
+     * created by {@link DaemonService} and immediately stops itself.
+     * This trick keeps the foreground-service requirement satisfied
+     * without showing a persistent notification to the user.
+     */
     public static class DaemonInnerService extends Service {
         @Override
         public void onCreate() {

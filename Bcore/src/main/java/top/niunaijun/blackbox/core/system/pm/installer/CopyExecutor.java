@@ -11,16 +11,23 @@ import top.niunaijun.blackbox.utils.FileUtils;
 import top.niunaijun.blackbox.utils.NativeUtils;
 
 /**
- * Created by Milk on 4/24/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
- * 拷贝文件相关
+ * Executor that handles file operations during package installation.
+ * <p>
+ * For non-system packages, copies native libraries (.so files) from the APK to the
+ * app's native lib directory. For storage-flagged installations, copies or renames
+ * the APK file to the app's base directory and updates the package's baseCodePath.
+ * System installations skip file copying since the APK remains in its original location.
  */
 public class CopyExecutor implements Executor {
 
+    /**
+     * Executes the file copy step of package installation.
+     *
+     * @param ps     the package settings containing the APK source path
+     * @param option the installation flags controlling copy behavior
+     * @param userId the virtual user ID (unused in this executor)
+     * @return 0 on success, -1 on failure
+     */
     @Override
     public int exec(BPackageSettings ps, InstallOption option, int userId) {
         try {

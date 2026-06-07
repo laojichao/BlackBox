@@ -11,16 +11,24 @@ import top.niunaijun.blackbox.proxy.record.ProxyPendingRecord;
 import top.niunaijun.blackbox.utils.Slog;
 
 /**
- * Created by Milk on 3/28/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Proxy Activity used for pending intents and activity-for-result redirections. When
+ * launched, it immediately finishes itself, extracts the target Intent from
+ * {@link ProxyPendingRecord}, adds the {@link Intent#FLAG_ACTIVITY_NEW_TASK} flag,
+ * and starts the real virtual Activity. This handles cases where an activity result
+ * or pending intent needs a registered Activity component to dispatch through.
+ *
+ * @author Milk
  */
 public class ProxyPendingActivity extends Activity {
     public static final String TAG = "ProxyPendingActivity";
 
+    /**
+     * Called when the pending proxy activity is created. Finishes immediately, extracts
+     * the target from the proxy record, and starts the real virtual Activity with the
+     * {@link Intent#FLAG_ACTIVITY_NEW_TASK} flag.
+     *
+     * @param savedInstanceState the saved instance state bundle, or {@code null} if none
+     */
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);

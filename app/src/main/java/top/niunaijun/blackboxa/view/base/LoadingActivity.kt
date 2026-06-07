@@ -5,16 +5,20 @@ import com.roger.catloadinglibrary.CatLoadingView
 import top.niunaijun.blackboxa.R
 
 /**
+ * Abstract activity that provides a loading dialog overlay for long-running operations.
  *
- * @Description: loading activity
- * @Author: BlackBox
- * @CreateDate: 2022/3/2 21:49
+ * Displays a non-cancelable [CatLoadingView] dialog that blocks user interaction and
+ * prevents back-press dismissal while an asynchronous operation is in progress.
+ * Subclasses should call [showLoading] before starting work and [hideLoading] when complete.
  */
 abstract class LoadingActivity : BaseActivity() {
 
     private lateinit var loadingView: CatLoadingView
 
-
+    /**
+     * Displays the loading dialog if it is not already showing.
+     * The dialog is non-cancelable and intercepts back/escape key presses.
+     */
     fun showLoading() {
         if (!this::loadingView.isInitialized) {
             loadingView = CatLoadingView()
@@ -35,6 +39,9 @@ abstract class LoadingActivity : BaseActivity() {
     }
 
 
+    /**
+     * Dismisses the loading dialog if it has been initialized and is currently showing.
+     */
     fun hideLoading() {
         if (this::loadingView.isInitialized) {
             loadingView.dismiss()

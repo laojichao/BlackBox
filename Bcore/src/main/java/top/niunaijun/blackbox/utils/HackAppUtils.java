@@ -1,5 +1,10 @@
 package top.niunaijun.blackbox.utils;
 
+/**
+ * Utility class for applying application-specific hacks within the virtual environment.
+ * Currently provides methods to enable verbose logging output for specific applications
+ * by modifying their internal configuration via reflection.
+ */
 public class HackAppUtils {
 
     /**

@@ -20,15 +20,24 @@ import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.utils.DrawableUtils;
 
 /**
- * Created by Milk on 3/31/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Compatibility utility for fixing {@link android.app.Activity} state within the virtual environment.
+ * <p>
+ * Handles activity initialization differences across Android versions by applying the correct
+ * window attributes (wallpaper background, fullscreen flags), setting up the task description
+ * with the appropriate label and icon for the virtual user on Android 5.0+ (Lollipop), and
+ * resolving the correct content resolver for the virtual environment.
  */
 public class ActivityCompat {
 
+    /**
+     * Fixes the given activity's internal state for the virtual environment.
+     * <p>
+     * This method resolves the activity's content resolver, applies window theme attributes
+     * such as wallpaper background and fullscreen flags, and on Android 5.0+ (Lollipop)
+     * sets the task description with a user-prefixed label and the activity icon.
+     *
+     * @param activity the activity instance to fix
+     */
     public static void fix(Activity activity) {
         // mContentResolver
         BRActivity.get(activity).mActivityInfo();

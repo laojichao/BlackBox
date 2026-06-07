@@ -5,10 +5,10 @@ import android.app.Application
 import android.os.Bundle
 
 /**
+ * Convenience interface implementing [Application.ActivityLifecycleCallbacks] with empty defaults.
  *
- * @Description:
- * @Author: kotlinMiku
- * @CreateDate: 2022/3/19 20:08
+ * Implementors can override only the lifecycle methods they need without providing
+ * stub implementations for every callback.
  */
 interface BaseActivityLifecycleCallback : Application.ActivityLifecycleCallbacks {
 

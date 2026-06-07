@@ -50,12 +50,21 @@ import static android.content.pm.PackageManager.MATCH_DIRECT_BOOT_UNAWARE;
 
 
 /**
- * Created by Milk on 4/1/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Central package management service for the virtual environment.
+ *
+ * <p>This service mirrors Android's {@code PackageManagerService} at the application level.
+ * It manages the lifecycle of all packages installed inside the BlackBox container,
+ * including installation, uninstallation, component resolution (activities, services,
+ * providers, receivers), and per-user package state. It delegates low-level file
+ * operations to {@link BPackageInstallerService} and intent resolution to
+ * {@link ComponentResolver}.</p>
+ *
+ * <p>All public query methods are thread-safe; package map access is guarded by
+ * {@code synchronized(mPackages)}.</p>
+ *
+ * @see BPackageInstallerService
+ * @see ComponentResolver
+ * @see BPackageSettings
  */
 public class BPackageManagerService extends IBPackageManagerService.Stub implements ISystemService {
     public static final String TAG = "BPackageManagerService";
@@ -68,10 +77,20 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
     final Map<String, BPackageSettings> mPackages = mSettings.mPackages;
     final Object mInstallLock = new Object();
 
+    /**
+     * Returns the singleton instance of this service.
+     *
+     * @return the global BPackageManagerService instance
+     */
     public static BPackageManagerService get() {
         return sService;
     }
 
+    /**
+     * Constructs the package manager service, initializes the component resolver,
+     * and registers a broadcast receiver for real host package install/remove events
+     * to trigger a settings re-scan.
+     */
     public BPackageManagerService() {
         mComponentResolver = new ComponentResolver();
         IntentFilter filter = new IntentFilter();
@@ -94,6 +113,15 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         }
     };
 
+    /**
+     * Retrieves the {@link ApplicationInfo} for a given package in the virtual environment.
+     * If the package name matches the host application, the real system info is returned.
+     *
+     * @param packageName the name of the package to look up
+     * @param flags       additional option flags (e.g., GET_META_DATA)
+     * @param userId      the virtual user ID
+     * @return the ApplicationInfo, or null if the package is not installed for this user
+     */
     @Override
     public ApplicationInfo getApplicationInfo(String packageName, int flags, int userId) {
         if (!sUserManager.exists(userId)) return null;
@@ -118,6 +146,16 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         return null;
     }
 
+    /**
+     * Resolves an intent to a single service within the virtual environment.
+     * Returns the first matching service if multiple candidates exist.
+     *
+     * @param intent        the intent to resolve
+     * @param flags         option flags for resolution
+     * @param resolvedType  the MIME type resolved from the intent's data
+     * @param userId        the virtual user ID
+     * @return the best-matching ResolveInfo, or null if no service matches
+     */
     @Override
     public ResolveInfo resolveService(Intent intent, int flags, String resolvedType, int userId) {
         if (!sUserManager.exists(userId)) return null;
@@ -173,6 +211,15 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         }
     }
 
+    /**
+     * Resolves an intent to the best matching activity within the virtual environment.
+     *
+     * @param intent        the intent to resolve
+     * @param flags         option flags for resolution
+     * @param resolvedType  the MIME type resolved from the intent's data
+     * @param userId        the virtual user ID
+     * @return the best-matching ResolveInfo, or null if no activity matches
+     */
     @Override
     public ResolveInfo resolveActivity(Intent intent, int flags, String resolvedType, int userId) {
         if (!sUserManager.exists(userId)) return null;
@@ -180,12 +227,30 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         return chooseBestActivity(intent, resolvedType, flags, resolves);
     }
 
+    /**
+     * Resolves a content provider by its authority string.
+     *
+     * @param authority the content provider authority to look up
+     * @param flags     option flags for resolution
+     * @param userId    the virtual user ID
+     * @return the ProviderInfo, or null if no provider matches the authority
+     */
     @Override
     public ProviderInfo resolveContentProvider(String authority, int flags, int userId) {
         if (!sUserManager.exists(userId)) return null;
         return mComponentResolver.queryProvider(authority, flags, userId);
     }
 
+    /**
+     * Resolves an intent to the best matching activity, considering both implicit
+     * and explicit intent resolution rules.
+     *
+     * @param intent        the intent to resolve
+     * @param resolvedType  the MIME type resolved from the intent's data
+     * @param flags         option flags for resolution
+     * @param userId        the virtual user ID
+     * @return the best-matching ResolveInfo, or null if no activity matches
+     */
     @Override
     public ResolveInfo resolveIntent(Intent intent, String resolvedType, int flags, int userId) {
         if (!sUserManager.exists(userId)) return null;
@@ -247,6 +312,14 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         }
     }
 
+    /**
+     * Queries all services that match the given intent within the virtual environment.
+     *
+     * @param intent   the intent to match against service intent filters
+     * @param flags    option flags for the query
+     * @param userId   the virtual user ID
+     * @return a list of matching ResolveInfo entries, or an empty list if none match
+     */
     @Override
     public List<ResolveInfo> queryIntentServices(
             Intent intent, int flags, int userId) {
@@ -269,6 +342,15 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         return null;
     }
 
+    /**
+     * Retrieves the {@link PackageInfo} for a given package in the virtual environment.
+     * If the package name matches the host application, the real system info is returned.
+     *
+     * @param packageName the name of the package to look up
+     * @param flags       additional option flags (e.g., GET_ACTIVITIES, GET_SERVICES)
+     * @param userId      the virtual user ID
+     * @return the PackageInfo, or null if the package is not installed for this user
+     */
     @Override
     public PackageInfo getPackageInfo(String packageName, int flags, int userId) {
         if (!sUserManager.exists(userId)) return null;
@@ -294,6 +376,14 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         return null;
     }
 
+    /**
+     * Retrieves the {@link ServiceInfo} for a specific service component.
+     *
+     * @param component the ComponentName of the service to look up
+     * @param flags     additional option flags
+     * @param userId    the virtual user ID
+     * @return the ServiceInfo, or null if the service is not found or not installed for this user
+     */
     @Override
     public ServiceInfo getServiceInfo(ComponentName component, int flags, int userId) {
         if (!sUserManager.exists(userId)) return null;
@@ -309,6 +399,14 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         return null;
     }
 
+    /**
+     * Retrieves the {@link ActivityInfo} for a specific broadcast receiver component.
+     *
+     * @param component the ComponentName of the receiver to look up
+     * @param flags     additional option flags
+     * @param userId    the virtual user ID
+     * @return the ActivityInfo, or null if the receiver is not found or not installed for this user
+     */
     @Override
     public ActivityInfo getReceiverInfo(ComponentName component, int flags, int userId) {
         if (!sUserManager.exists(userId)) return null;
@@ -324,6 +422,14 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         return null;
     }
 
+    /**
+     * Retrieves the {@link ActivityInfo} for a specific activity component.
+     *
+     * @param component the ComponentName of the activity to look up
+     * @param flags     additional option flags
+     * @param userId    the virtual user ID
+     * @return the ActivityInfo, or null if the activity is not found or not installed for this user
+     */
     @Override
     public ActivityInfo getActivityInfo(ComponentName component, int flags, int userId) {
         if (!sUserManager.exists(userId)) return null;
@@ -340,6 +446,14 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         return null;
     }
 
+    /**
+     * Retrieves the {@link ProviderInfo} for a specific content provider component.
+     *
+     * @param component the ComponentName of the provider to look up
+     * @param flags     additional option flags
+     * @param userId    the virtual user ID
+     * @return the ProviderInfo, or null if the provider is not found or not installed for this user
+     */
     @Override
     public ProviderInfo getProviderInfo(ComponentName component, int flags, int userId) {
         if (!sUserManager.exists(userId)) return null;
@@ -355,11 +469,27 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         return null;
     }
 
+    /**
+     * Returns a list of {@link ApplicationInfo} for all installed applications
+     * in the virtual environment for the specified user.
+     *
+     * @param flags  additional option flags
+     * @param userId the virtual user ID
+     * @return list of ApplicationInfo entries; empty if the user does not exist
+     */
     @Override
     public List<ApplicationInfo> getInstalledApplications(int flags, int userId) {
         return getInstalledApplicationsListInternal(flags, userId, Binder.getCallingUid());
     }
 
+    /**
+     * Returns a list of {@link PackageInfo} for all installed packages
+     * in the virtual environment for the specified user.
+     *
+     * @param flags  additional option flags
+     * @param userId the virtual user ID
+     * @return list of PackageInfo entries; empty if the user does not exist
+     */
     @Override
     public List<PackageInfo> getInstalledPackages(int flags, int userId) {
         final int callingUid = Binder.getCallingUid();
@@ -416,6 +546,17 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         }
     }
 
+    /**
+     * Queries all activities that match the given intent within the virtual environment.
+     * Supports both implicit resolution (all activities) and explicit package-scoped queries.
+     *
+     * @param intent        the intent to match against activity intent filters
+     * @param flags         option flags for the query
+     * @param resolvedType  the MIME type resolved from the intent's data
+     * @param userId        the virtual user ID
+     * @return a list of matching ResolveInfo entries
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public List<ResolveInfo> queryIntentActivities(Intent intent, int flags, String resolvedType, int userId) throws RemoteException {
         if (!sUserManager.exists(userId)) return Collections.emptyList();
@@ -468,6 +609,17 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         return Collections.emptyList();
     }
 
+    /**
+     * Queries all broadcast receivers that match the given intent within the virtual environment.
+     * Supports both implicit and explicit (package-scoped) resolution.
+     *
+     * @param intent        the intent to match against receiver intent filters
+     * @param flags         option flags for the query
+     * @param resolvedType  the MIME type resolved from the intent's data
+     * @param userId        the virtual user ID
+     * @return a list of matching ResolveInfo entries
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public List<ResolveInfo> queryBroadcastReceivers(Intent intent, int flags, String resolvedType, int userId) throws RemoteException {
         if (!sUserManager.exists(userId)) return Collections.emptyList();
@@ -508,6 +660,16 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         }
     }
 
+    /**
+     * Queries all content providers running in the specified process.
+     *
+     * @param processName the process name to filter by
+     * @param uid         the UID (currently unused in filtering)
+     * @param flags       additional option flags
+     * @param userId      the virtual user ID
+     * @return a list of matching ProviderInfo entries
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public List<ProviderInfo> queryContentProviders(String processName, int uid, int flags, int userId) throws RemoteException {
         if (!sUserManager.exists(userId)) return Collections.emptyList();
@@ -519,6 +681,16 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         return providers;
     }
 
+    /**
+     * Installs an APK file for a specific virtual user. Parses the APK, validates
+     * ABI compatibility, creates package settings, delegates file operations to
+     * {@link BPackageInstallerService}, registers all components, and notifies monitors.
+     *
+     * @param file   the path or URI string of the APK to install
+     * @param option installation options and flags
+     * @param userId the virtual user ID to install for
+     * @return an InstallResult containing the package name on success or an error message on failure
+     */
     @Override
     public InstallResult installPackageAsUser(String file, InstallOption option, int userId) {
         synchronized (mInstallLock) {
@@ -526,6 +698,15 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         }
     }
 
+    /**
+     * Uninstalls a package for a specific virtual user. Kills running processes,
+     * removes user data, and if this is the last user, removes the package entirely
+     * from settings and the component resolver.
+     *
+     * @param packageName the name of the package to uninstall
+     * @param userId      the virtual user ID to uninstall for
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void uninstallPackageAsUser(String packageName, int userId) throws RemoteException {
         synchronized (mInstallLock) {
@@ -558,6 +739,14 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         }
     }
 
+    /**
+     * Uninstalls a package from all virtual users. For Xposed modules, iterates
+     * all users; for regular packages, iterates only the users that have it installed.
+     * Kills all associated processes, removes all user data, and clears the package
+     * from settings and the component resolver.
+     *
+     * @param packageName the name of the package to uninstall globally
+     */
     @Override
     public void uninstallPackage(String packageName) {
         synchronized (mInstallLock) {
@@ -589,6 +778,13 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         }
     }
 
+    /**
+     * Clears the data of a package for a specific virtual user without uninstalling it.
+     * Kills running processes and delegates to {@link BPackageInstallerService#clearPackage}.
+     *
+     * @param packageName the name of the package whose data to clear
+     * @param userId      the virtual user ID
+     */
     @Override
     public void clearPackage(String packageName, int userId) {
         if (!isInstalled(packageName, userId)) {
@@ -601,11 +797,24 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         int i = BPackageInstallerService.get().clearPackage(ps, userId);
     }
 
+    /**
+     * Stops all processes belonging to a package for a specific virtual user.
+     *
+     * @param packageName the name of the package to stop
+     * @param userId      the virtual user ID
+     */
     @Override
     public void stopPackage(String packageName, int userId) {
         BProcessManagerService.get().killPackageAsUser(packageName, userId);
     }
 
+    /**
+     * Removes all packages installed for a specific virtual user, effectively
+     * deleting the user's entire virtual application environment.
+     *
+     * @param userId the virtual user ID to delete
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void deleteUser(int userId) throws RemoteException {
         synchronized (mPackages) {
@@ -615,6 +824,13 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         }
     }
 
+    /**
+     * Checks whether a package is installed for a specific virtual user.
+     *
+     * @param packageName the name of the package to check
+     * @param userId      the virtual user ID
+     * @return true if the package is installed for the given user, false otherwise
+     */
     @Override
     public boolean isInstalled(String packageName, int userId) {
         if (!sUserManager.exists(userId)) return false;
@@ -626,6 +842,13 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         }
     }
 
+    /**
+     * Returns a simplified list of installed packages for a specific virtual user,
+     * containing only package name and user ID. Excludes Google service packages.
+     *
+     * @param userId the virtual user ID
+     * @return list of InstalledPackage entries; empty if the user does not exist
+     */
     @Override
     public List<InstalledPackage> getInstalledPackagesAsUser(int userId) {
         if (!sUserManager.exists(userId)) return Collections.emptyList();
@@ -643,6 +866,15 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         }
     }
 
+    /**
+     * Returns the package names associated with a given UID for a specific virtual user.
+     * Falls back to the calling process's package name if no match is found.
+     *
+     * @param uid    the application UID to look up
+     * @param userId the virtual user ID
+     * @return an array of package names matching the UID; may be empty
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public String[] getPackagesForUid(int uid, int userId) throws RemoteException {
         if (!sUserManager.exists(userId)) return new String[]{};
@@ -771,6 +1003,12 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         return flags;
     }
 
+    /**
+     * Returns the application ID (UID) for a given package name, or -1 if not found.
+     *
+     * @param packageName the name of the package to look up
+     * @return the application ID, or -1 if the package is not registered
+     */
     public int getAppId(String packageName) {
         BPackageSettings bPackageSettings = mPackages.get(packageName);
         if (bPackageSettings != null)
@@ -782,10 +1020,21 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         return mSettings;
     }
 
+    /**
+     * Registers a {@link PackageMonitor} to receive notifications when packages
+     * are installed or uninstalled.
+     *
+     * @param monitor the monitor to register
+     */
     public void addPackageMonitor(PackageMonitor monitor) {
         mPackageMonitors.add(monitor);
     }
 
+    /**
+     * Unregisters a previously registered {@link PackageMonitor}.
+     *
+     * @param monitor the monitor to remove
+     */
     public void removePackageMonitor(PackageMonitor monitor) {
         mPackageMonitors.remove(monitor);
     }
@@ -804,14 +1053,29 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         Slog.d(TAG, "onPackageInstalled: " + packageName + ", userId: " + userId);
     }
 
+    /**
+     * Retrieves the {@link BPackageSettings} for a specific package by name.
+     *
+     * @param packageName the name of the package to look up
+     * @return the BPackageSettings, or null if the package is not registered
+     */
     public BPackageSettings getBPackageSetting(String packageName) {
         return mPackages.get(packageName);
     }
 
+    /**
+     * Returns a snapshot list of all registered package settings.
+     *
+     * @return a new list containing all BPackageSettings currently tracked
+     */
     public List<BPackageSettings> getBPackageSettings() {
         return new ArrayList<>(mPackages.values());
     }
 
+    /**
+     * Called when the system is fully initialized. Scans all installed packages,
+     * clears stale component registrations, and re-registers all known components.
+     */
     @Override
     public void systemReady() {
         mSettings.scanPackage();

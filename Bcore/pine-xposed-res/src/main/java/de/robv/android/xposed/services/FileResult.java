@@ -3,7 +3,11 @@ package de.robv.android.xposed.services;
 import java.io.InputStream;
 
 /**
- * Holder for the result of a {@link BaseService#readFile} or  {@link BaseService#statFile} call.
+ * Holder for the result of a {@link BaseService#readFile} or {@link BaseService#statFile} call.
+ *
+ * <p>Instances carry either the file content (as a byte array or input stream), the file size,
+ * and the last modification time. When a file has not changed since the last read, the content
+ * fields will be {@code null} but the size and time fields are still populated.
  */
 public final class FileResult {
     /** File content, might be {@code null} if the file wasn't read. */
@@ -15,6 +19,7 @@ public final class FileResult {
     /** File last modification time. */
     public final long mtime;
 
+    /** @hide */
     /*package*/ FileResult(long size, long mtime) {
         this.content = null;
         this.stream = null;
@@ -22,6 +27,7 @@ public final class FileResult {
         this.mtime = mtime;
     }
 
+    /** @hide */
     /*package*/ FileResult(byte[] content, long size, long mtime) {
         this.content = content;
         this.stream = null;
@@ -29,6 +35,7 @@ public final class FileResult {
         this.mtime = mtime;
     }
 
+    /** @hide */
     /*package*/ FileResult(InputStream stream, long size, long mtime) {
         this.content = null;
         this.stream = stream;

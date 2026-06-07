@@ -32,10 +32,23 @@ import top.niunaijun.blackbox.utils.compat.BuildCompat;
  * しーＪ
  * 此处无Bug
  */
+/**
+ * Delegate responsible for intercepting and wrapping ContentProvider instances within
+ * the virtual environment. Handles initialization of system content providers (settings,
+ * media, telephony) and ensures all provider clients are properly proxied through
+ * BlackBox's provider stubs.
+ */
 public class ContentProviderDelegate {
     public static final String TAG = "ContentProviderDelegate";
     private static Set<String> sInjected = new HashSet<>();
 
+    /**
+     * Updates a ContentProvider holder by wrapping its IInterface provider with the
+     * appropriate stub implementation based on the authority.
+     *
+     * @param holder the ContentProvider client record holder object
+     * @param auth   the authority string of the content provider
+     */
     public static void update(Object holder, String auth) {
         IInterface iInterface;
         if (BuildCompat.isOreo()) {
@@ -64,6 +77,11 @@ public class ContentProviderDelegate {
         }
     }
 
+    /**
+     * Initializes all content providers by clearing cached settings providers and
+     * wrapping each registered provider client with the appropriate proxy stub.
+     * Providers that have already been injected are skipped.
+     */
     public static void init() {
         clearSettingProvider();
 
@@ -86,6 +104,10 @@ public class ContentProviderDelegate {
         }
     }
 
+    /**
+     * Clears cached content provider references in all settings providers
+     * (system, secure, and global) to force re-initialization.
+     */
     public static void clearSettingProvider() {
         Object cache;
         cache = BRSettingsSystem.get().sNameValueCache();

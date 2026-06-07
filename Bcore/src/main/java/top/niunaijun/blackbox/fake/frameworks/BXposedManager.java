@@ -10,16 +10,18 @@ import top.niunaijun.blackbox.core.system.pm.IBXposedManagerService;
 import top.niunaijun.blackbox.entity.pm.InstalledModule;
 
 /**
- * Created by Milk on 5/2/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Client-side manager for Xposed module operations within the virtual environment.
+ * Provides a facade over {@link IBXposedManagerService} for enabling/disabling Xposed
+ * framework and individual modules.
  */
 public class BXposedManager extends BlackManager<IBXposedManagerService> {
     private static final BXposedManager sXposedManager = new BXposedManager();
 
+    /**
+     * Returns the singleton instance of {@link BXposedManager}.
+     *
+     * @return the singleton BXposedManager instance
+     */
     public static BXposedManager get() {
         return sXposedManager;
     }
@@ -29,6 +31,11 @@ public class BXposedManager extends BlackManager<IBXposedManagerService> {
         return ServiceManager.XPOSED_MANAGER;
     }
 
+    /**
+     * Checks whether the Xposed framework is enabled.
+     *
+     * @return true if Xposed is enabled, false otherwise
+     */
     public boolean isXPEnable() {
         try {
             return getService().isXPEnable();
@@ -38,6 +45,11 @@ public class BXposedManager extends BlackManager<IBXposedManagerService> {
         return false;
     }
 
+    /**
+     * Enables or disables the Xposed framework.
+     *
+     * @param enable true to enable, false to disable
+     */
     public void setXPEnable(boolean enable) {
         try {
             getService().setXPEnable(enable);
@@ -46,6 +58,12 @@ public class BXposedManager extends BlackManager<IBXposedManagerService> {
         }
     }
 
+    /**
+     * Checks whether a specific Xposed module is enabled.
+     *
+     * @param packageName the package name of the module
+     * @return true if the module is enabled, false otherwise
+     */
     public boolean isModuleEnable(String packageName) {
         try {
             return getService().isModuleEnable(packageName);
@@ -55,6 +73,12 @@ public class BXposedManager extends BlackManager<IBXposedManagerService> {
         return false;
     }
 
+    /**
+     * Enables or disables a specific Xposed module.
+     *
+     * @param packageName the package name of the module
+     * @param enable      true to enable, false to disable
+     */
     public void setModuleEnable(String packageName, boolean enable) {
         try {
             getService().setModuleEnable(packageName, enable);
@@ -63,6 +87,11 @@ public class BXposedManager extends BlackManager<IBXposedManagerService> {
         }
     }
 
+    /**
+     * Returns a list of all installed Xposed modules.
+     *
+     * @return the list of InstalledModule, or an empty list on failure
+     */
     public List<InstalledModule> getInstalledModules() {
         try {
             return getService().getInstalledModules();

@@ -25,7 +25,15 @@ import top.niunaijun.blackboxa.view.list.ListActivity
 import top.niunaijun.blackboxa.view.setting.SettingActivity
 
 
-class MainActivity : LoadingActivity() {
+/**
+ * Main screen of the BlackBox application that displays a ViewPager of installed virtual apps.
+ *
+ * Each page in the ViewPager corresponds to a separate user space, allowing the user to manage
+ * apps across multiple virtual user profiles. Provides a floating action button to install new
+ * apps, toolbar subtitle for user remark editing, and a menu for accessing settings, GitHub,
+ * Telegram, and fake location management.
+ */
+class MainActivity : BaseActivity() {
 
     private val viewBinding: ActivityMainBinding by inflate()
 
@@ -100,6 +108,11 @@ class MainActivity : LoadingActivity() {
         }
     }
 
+    /**
+     * Animates the floating action button visibility with a slide-up or slide-down animation.
+     *
+     * @param show true to show the FAB (slide up and fade in), false to hide it (slide down and fade out)
+     */
     fun showFloatButton(show: Boolean) {
         val tranY: Float = Resolution.convertDpToPixel(120F, App.getContext())
         val time = 200L
@@ -112,6 +125,11 @@ class MainActivity : LoadingActivity() {
         }
     }
 
+    /**
+     * Synchronizes the ViewPager fragment list with the current virtual user count.
+     * Adds a new empty page if the user count increased, or removes the last page
+     * if users were deleted. Notifies the adapter of dataset changes.
+     */
     fun scanUser() {
         val userList = BlackBoxCore.get().users
 
@@ -183,6 +201,11 @@ class MainActivity : LoadingActivity() {
     }
 
     companion object {
+        /**
+         * Launches the [MainActivity] from the given context.
+         *
+         * @param context the context used to start the activity
+         */
         fun start(context: Context) {
             val intent = Intent(context, MainActivity::class.java)
             context.startActivity(intent)

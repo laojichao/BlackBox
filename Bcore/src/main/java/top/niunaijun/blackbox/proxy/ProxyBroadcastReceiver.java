@@ -10,11 +10,23 @@ import top.niunaijun.blackbox.entity.am.PendingResultData;
 import top.niunaijun.blackbox.proxy.record.ProxyBroadcastRecord;
 
 /**
- * Created by BlackBox on 2022/2/25.
+ * Proxy BroadcastReceiver that intercepts broadcast intents on behalf of virtual apps.
+ * Extracts the real broadcast data from {@link ProxyBroadcastRecord} and schedules it
+ * through {@link top.niunaijun.blackbox.fake.frameworks.BActivityManager} so that the
+ * virtual app's registered receivers are invoked within the virtual environment.
+ *
+ * @author BlackBox
  */
 public class ProxyBroadcastReceiver extends BroadcastReceiver {
     public static final String TAG = "ProxyBroadcastReceiver";
 
+    /**
+     * Receives a broadcast intent, extracts the proxy record, and schedules the real
+     * broadcast delivery to virtual app receivers via the activity manager.
+     *
+     * @param context the Context in which the receiver is running
+     * @param intent  the Intent being received, carrying the proxy broadcast record
+     */
     @Override
     public void onReceive(Context context, Intent intent) {
         intent.setExtrasClassLoader(context.getClassLoader());

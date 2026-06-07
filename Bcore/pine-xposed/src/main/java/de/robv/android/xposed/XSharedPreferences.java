@@ -312,6 +312,15 @@ public final class XSharedPreferences implements SharedPreferences {
 	}
 
 
+	/**
+	 * Returns the file path to the shared preferences for a given package, resolved through
+	 * the BlackBox environment. Uses reflection to invoke
+	 * {@code top.niunaijun.blackbox.core.env.BEnvironment.getXSharedPreferences}.
+	 *
+	 * @param packageName the package name whose preferences to locate
+	 * @param prefFileName the preference file name (without ".xml")
+	 * @return the preferences file, or {@code null} if it cannot be resolved
+	 */
 	public static File getXSharedPreferences(String packageName, String prefFileName) {
 		try {
 			Class<?> bEnvironment = XSharedPreferences.class.getClassLoader().loadClass("top.niunaijun.blackbox.core.env.BEnvironment");

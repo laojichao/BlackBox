@@ -10,6 +10,13 @@ import java.lang.reflect.Modifier;
 import top.canyie.pine.Pine;
 
 /**
+ * Utility class providing low-level operations for the Pine hooking framework.
+ * <p>
+ * Includes methods for manipulating object class pointers, superclass references,
+ * field offsets, class access flags, and byte/int/long/double conversions assuming
+ * little-endian byte order (as used by Android/ARM).
+ * </p>
+ *
  * @author canyie
  */
 @SuppressWarnings("JavaReflectionMemberAccess") @SuppressLint("PrivateApi") public final class Primitives {
@@ -22,11 +29,27 @@ import top.canyie.pine.Pine;
     private static Field superClassField;
     private static Field classAccessFlagsField;
 
+    /**
+     * Returns the native ART thread pointer for the current thread.
+     * Ensures the Pine library is initialized before retrieving the thread pointer.
+     *
+     * @return the native ART thread pointer as a {@code long}.
+     */
     public static long currentArtThread() {
         Pine.ensureInitialized();
         return Pine.currentArtThread0();
     }
 
+    /**
+     * Sets the class pointer of an object to a different class at the native level.
+     * <p>
+     * Tries {@code Object.shadow$_klass_} field first; falls back to {@code sun.misc.Unsafe.putObject}
+     * if the shadow field is not available.
+     * </p>
+     *
+     * @param target   the object whose class pointer should be changed.
+     * @param newClass the new class to assign to the object.
+     */
     public static void setObjectClass(Object target, Class<?> newClass) {
         if (target.getClass() == newClass) return;
         if (!triedGetShadowKlassField) {
@@ -54,6 +77,13 @@ import top.canyie.pine.Pine;
         }
     }
 
+    /**
+     * Sets the superclass pointer of a class to a different class at the native level.
+     *
+     * @param target       the class whose superclass should be changed.
+     * @param newSuperClass the new superclass to assign.
+     * @throws RuntimeException if the {@code Class.superClass} field is not found or inaccessible.
+     */
     public static void setSuperClass(Class<?> target, Class<?> newSuperClass) {
         if (target.getSuperclass() == newSuperClass) return;
         if (superClassField == null) {
@@ -72,6 +102,17 @@ import top.canyie.pine.Pine;
         }
     }
 
+    /**
+     * Returns the memory offset of the given field within its declaring object.
+     * <p>
+     * Tries multiple approaches: Android-specific {@code Field.offset} field,
+     * Android-specific {@code Field.getOffset()} method, and {@code Unsafe.objectFieldOffset()}.
+     * </p>
+     *
+     * @param field the field to get the offset for.
+     * @return the field offset in bytes.
+     * @throws Exception if none of the offset retrieval methods are available.
+     */
     public static int getFieldOffset(Field field) throws Exception {
         // 1. try Android-specific field
         try {
@@ -97,6 +138,13 @@ import top.canyie.pine.Pine;
         return (int) objectFieldOffset.invoke(unsafe, field);
     }
 
+    /**
+     * Removes the {@code final} modifier from the given class by modifying its access flags
+     * via the hidden {@code Class.accessFlags} field.
+     *
+     * @param target the class to remove the {@code final} flag from.
+     * @throws RuntimeException if the {@code Class.accessFlags} field is not found or inaccessible.
+     */
     public static void removeClassFinalFlag(Class<?> target) {
         if (!Modifier.isFinal(target.getModifiers())) return;
         if (classAccessFlagsField == null) {
@@ -115,6 +163,12 @@ import top.canyie.pine.Pine;
         }
     }
 
+    /**
+     * Converts an {@code int} value to a 4-byte array in little-endian order.
+     *
+     * @param value the integer value to convert.
+     * @return a 4-element byte array in little-endian order.
+     */
     public static byte[] int2Bytes(int value) {
         // Android only use little-endian.
         return new byte[] {
@@ -125,6 +179,12 @@ import top.canyie.pine.Pine;
         };
     }
 
+    /**
+     * Converts a 4-byte array (little-endian) to an {@code int} value.
+     *
+     * @param src a 4-element byte array in little-endian order.
+     * @return the reconstructed integer value.
+     */
     public static int bytes2Int(byte[] src) {
         // Android only use little-endian.
         return (src[0] & 0xFF)
@@ -133,19 +193,48 @@ import top.canyie.pine.Pine;
                 | ((src[3] & 0xFF) << 24);
     }
 
+    /**
+     * Combines two {@code int} values into a {@code long} in little-endian order.
+     *
+     * @param l the low 32 bits.
+     * @param h the high 32 bits.
+     * @return the combined 64-bit long value.
+     */
     public static long ints2Long(int l, int h) {
         // Android only use little-endian.
         return (((long) h) << 32) | (l & 0xffffffffL);
     }
 
+    /**
+     * Combines two {@code int} values into a {@code double} via bit reinterpretation
+     * in little-endian order.
+     *
+     * @param a the low 32 bits.
+     * @param b the high 32 bits.
+     * @return the reconstructed double value.
+     */
     public static double ints2Double(int a, int b) {
         return Double.longBitsToDouble(ints2Long(a, b));
     }
 
+    /**
+     * Combines two {@code float} values into a {@code double} by reinterpreting each float
+     * as an int and combining them as a long in little-endian order.
+     *
+     * @param l the low float value.
+     * @param h the high float value.
+     * @return the reconstructed double value.
+     */
     public static double floats2Double(float l, float h) {
         return Double.longBitsToDouble(ints2Long(Float.floatToIntBits(l), Float.floatToIntBits(h)));
     }
 
+    /**
+     * Rounds up an integer to the nearest even number.
+     *
+     * @param n the input value.
+     * @return the value rounded up to the nearest even number (unchanged if already even).
+     */
     public static int evenUp(int n) {
         if ((n & 1) == 1) {
             n++;

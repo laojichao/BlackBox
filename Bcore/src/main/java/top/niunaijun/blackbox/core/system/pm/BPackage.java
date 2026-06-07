@@ -23,44 +23,80 @@ import top.niunaijun.blackbox.entity.pm.InstallOption;
 import top.niunaijun.blackbox.utils.compat.BuildCompat;
 
 /**
- * Created by Milk on 4/21/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Parcelable representation of an Android application package within the virtual environment.
+ *
+ * <p>This class mirrors Android's {@link PackageParser.Package} but is designed to be
+ * serializable across process boundaries via {@link Parcel}. It contains all component
+ * declarations (activities, services, providers, receivers), permissions, signing details,
+ * and metadata required to represent a fully parsed APK within the BlackBox container.</p>
+ *
+ * <p>Each component type has a corresponding inner class (e.g., {@link Activity},
+ * {@link Service}) that wraps the platform's parsed data and maintains back-references
+ * to the owning {@link BPackage}.</p>
+ *
+ * @see BPackageSettings
+ * @see PackageParser.Package
  */
 public class BPackage implements Parcelable {
+    /** List of declared activities in this package. */
     public ArrayList<Activity> activities = new ArrayList<Activity>(0);
+    /** List of declared broadcast receivers in this package. */
     public ArrayList<Activity> receivers = new ArrayList<Activity>(0);
+    /** List of declared content providers in this package. */
     public ArrayList<Provider> providers = new ArrayList<Provider>(0);
+    /** List of declared services in this package. */
     public ArrayList<Service> services = new ArrayList<Service>(0);
+    /** List of declared instrumentation components in this package. */
     public ArrayList<Instrumentation> instrumentation = new ArrayList<Instrumentation>(0);
+    /** List of permissions declared by this package. */
     public ArrayList<Permission> permissions = new ArrayList<Permission>(0);
+    /** List of permission groups declared by this package. */
     public ArrayList<PermissionGroup> permissionGroups = new ArrayList<PermissionGroup>(0);
+    /** Permissions requested by this package at install time. */
     public ArrayList<String> requestedPermissions = new ArrayList<String>();
+    /** APK signatures (pre-Android P). */
     public Signature[] mSignatures;
+    /** Signing details including certificate chain (Android P and above). */
     public SigningDetails mSigningDetails;
+    /** Application-level metadata bundle from AndroidManifest.xml. */
     public Bundle mAppMetaData;
+    /** Package settings associated with this package, including per-user state. */
     public BPackageSettings mExtras;
+    /** The unique package name (e.g., "com.example.app"). */
     public String packageName;
+    /** Preferred ordering value for intent resolution priority. */
     public int mPreferredOrder;
+    /** Shared user ID string, if this package shares a UID with other packages. */
     public String mSharedUserId;
+    /** Shared libraries required by this package at runtime. */
     public ArrayList<String> usesLibraries;
+    /** Optional shared libraries used by this package. */
     public ArrayList<String> usesOptionalLibraries;
+    /** Version code integer from the manifest. */
     public int mVersionCode;
+    /** The parsed application-level information. */
     public ApplicationInfo applicationInfo;
+    /** Human-readable version name string. */
     public String mVersionName;
+    /** Base path to the APK file on disk. */
     public String baseCodePath;
 
+    /** Resource label ID for the shared user. */
     public int mSharedUserLabel;
-    // Applications hardware preferences
+    /** Hardware configuration preferences declared by the application. */
     public ArrayList<ConfigurationInfo> configPreferences = null;
-    // Applications requested features
+    /** Hardware features required or requested by the application. */
     public ArrayList<FeatureInfo> reqFeatures = null;
 
+    /** Installation options and flags used when this package was installed. */
     public InstallOption installOption;
 
+    /**
+     * Constructs a BPackage by converting all components from a platform-parsed
+     * {@link PackageParser.Package} into BlackBox's serializable representation.
+     *
+     * @param aPackage the parsed package from the platform's PackageParser
+     */
     public BPackage(PackageParser.Package aPackage) {
         this.activities = new ArrayList<>(aPackage.activities.size());
         for (PackageParser.Activity activity : aPackage.activities) {
@@ -146,6 +182,11 @@ public class BPackage implements Parcelable {
         this.reqFeatures = aPackage.reqFeatures;
     }
 
+    /**
+     * Restores a BPackage from a previously serialized {@link Parcel}.
+     *
+     * @param in the Parcel containing serialized package data
+     */
     protected BPackage(Parcel in) {
         int N = in.readInt();
         this.activities = new ArrayList<>(N);
@@ -237,9 +278,20 @@ public class BPackage implements Parcelable {
         this.installOption = in.readParcelable(InstallOption.class.getClassLoader());
     }
 
+    /**
+     * Represents an Android activity component within a virtual package.
+     * Wraps {@link PackageParser.Activity} with intent filter information
+     * and maintains a back-reference to the owning {@link BPackage}.
+     */
     public final static class Activity extends Component<ActivityIntentInfo> {
+        /** The parsed activity information (name, permissions, theme, etc.). */
         public ActivityInfo info;
 
+        /**
+         * Constructs an Activity by converting from a platform-parsed Activity.
+         *
+         * @param activity the platform-parsed activity component
+         */
         public Activity(PackageParser.Activity activity) {
             super(activity);
             this.info = activity.info;
@@ -252,9 +304,12 @@ public class BPackage implements Parcelable {
             }
         }
 
+        /**
+         * Restores an Activity from a previously serialized Parcel.
+         *
+         * @param parcel the Parcel containing serialized activity data
+         */
         public Activity(Parcel parcel) {
-            super(parcel);
-            this.info = parcel.readParcelable(ActivityInfo.class.getClassLoader());
             int N = parcel.readInt();
             this.intents = new ArrayList<>(N);
             while (N-- > 0) {
@@ -264,9 +319,19 @@ public class BPackage implements Parcelable {
         }
     }
 
+    /**
+     * Represents an Android service component within a virtual package.
+     * Wraps {@link PackageParser.Service} with its intent filters.
+     */
     public static final class Service extends Component<ServiceIntentInfo> {
+        /** The parsed service information (name, permissions, intent filter, etc.). */
         public ServiceInfo info;
 
+        /**
+         * Constructs a Service by converting from a platform-parsed Service.
+         *
+         * @param service the platform-parsed service component
+         */
         public Service(PackageParser.Service service) {
             super(service);
             info = service.info;
@@ -279,9 +344,12 @@ public class BPackage implements Parcelable {
             }
         }
 
+        /**
+         * Restores a Service from a previously serialized Parcel.
+         *
+         * @param parcel the Parcel containing serialized service data
+         */
         public Service(Parcel parcel) {
-            super(parcel);
-            info = parcel.readParcelable(ServiceInfo.class.getClassLoader());
             int N = parcel.readInt();
             intents = new ArrayList<>(N);
             while (N-- > 0) {
@@ -291,9 +359,19 @@ public class BPackage implements Parcelable {
         }
     }
 
+    /**
+     * Represents an Android content provider component within a virtual package.
+     * Wraps {@link PackageParser.Provider} with its intent filters.
+     */
     public static final class Provider extends Component<ProviderIntentInfo> {
+        /** The parsed provider information (authority, permissions, etc.). */
         public ProviderInfo info;
 
+        /**
+         * Constructs a Provider by converting from a platform-parsed Provider.
+         *
+         * @param provider the platform-parsed provider component
+         */
         public Provider(PackageParser.Provider provider) {
             super(provider);
             info = provider.info;
@@ -306,9 +384,12 @@ public class BPackage implements Parcelable {
             }
         }
 
+        /**
+         * Restores a Provider from a previously serialized Parcel.
+         *
+         * @param parcel the Parcel containing serialized provider data
+         */
         public Provider(Parcel parcel) {
-            super(parcel);
-            info = parcel.readParcelable(ProviderInfo.class.getClassLoader());
             int N = parcel.readInt();
             intents = new ArrayList<>(N);
             while (N-- > 0) {
@@ -318,9 +399,19 @@ public class BPackage implements Parcelable {
         }
     }
 
+    /**
+     * Represents an Android instrumentation component within a virtual package.
+     * Used for testing frameworks that monitor application interaction.
+     */
     public static final class Instrumentation extends Component<IntentInfo> {
+        /** The parsed instrumentation information (target package, runner, etc.). */
         public InstrumentationInfo info;
 
+        /**
+         * Constructs an Instrumentation by converting from a platform-parsed Instrumentation.
+         *
+         * @param instrumentation the platform-parsed instrumentation component
+         */
         public Instrumentation(PackageParser.Instrumentation instrumentation) {
             super(instrumentation);
             info = instrumentation.info;
@@ -333,9 +424,12 @@ public class BPackage implements Parcelable {
             }
         }
 
+        /**
+         * Restores an Instrumentation from a previously serialized Parcel.
+         *
+         * @param parcel the Parcel containing serialized instrumentation data
+         */
         public Instrumentation(Parcel parcel) {
-            super(parcel);
-            this.info = parcel.readParcelable(InstrumentationInfo.class.getClassLoader());
             int N = parcel.readInt();
             this.intents = new ArrayList<>(N);
             while (N-- > 0) {
@@ -345,9 +439,19 @@ public class BPackage implements Parcelable {
         }
     }
 
+    /**
+     * Represents a declared permission within a virtual package.
+     * Wraps {@link PackageParser.Permission} with its parsed information.
+     */
     public static final class Permission extends Component<IntentInfo> {
+        /** The parsed permission information (name, protection level, etc.). */
         public PermissionInfo info;
 
+        /**
+         * Constructs a Permission by converting from a platform-parsed Permission.
+         *
+         * @param permission the platform-parsed permission component
+         */
         public Permission(PackageParser.Permission permission) {
             super(permission);
             this.info = permission.info;
@@ -360,9 +464,12 @@ public class BPackage implements Parcelable {
             }
         }
 
+        /**
+         * Restores a Permission from a previously serialized Parcel.
+         *
+         * @param parcel the Parcel containing serialized permission data
+         */
         public Permission(Parcel parcel) {
-            super(parcel);
-            this.info = parcel.readParcelable(Permission.class.getClassLoader());
             int N = parcel.readInt();
             this.intents = new ArrayList<>(N);
             while (N-- > 0) {
@@ -372,9 +479,19 @@ public class BPackage implements Parcelable {
         }
     }
 
+    /**
+     * Represents a permission group within a virtual package.
+     * Permission groups organize related permissions for UI presentation.
+     */
     public static final class PermissionGroup extends Component<IntentInfo> {
+        /** The parsed permission group information. */
         public PermissionGroupInfo info;
 
+        /**
+         * Constructs a PermissionGroup by converting from a platform-parsed PermissionGroup.
+         *
+         * @param group the platform-parsed permission group component
+         */
         public PermissionGroup(PackageParser.PermissionGroup group) {
             super(group);
             this.info = group.info;
@@ -387,9 +504,12 @@ public class BPackage implements Parcelable {
             }
         }
 
+        /**
+         * Restores a PermissionGroup from a previously serialized Parcel.
+         *
+         * @param parcel the Parcel containing serialized permission group data
+         */
         public PermissionGroup(Parcel parcel) {
-            super(parcel);
-            this.info = parcel.readParcelable(PermissionGroup.class.getClassLoader());
             int N = parcel.readInt();
             this.intents = new ArrayList<>(N);
             while (N-- > 0) {
@@ -399,57 +519,127 @@ public class BPackage implements Parcelable {
         }
     }
 
+    /**
+     * Intent filter information associated with an {@link Activity} component.
+     * Links an intent filter to its parent activity for resolution purposes.
+     */
     public static class ActivityIntentInfo extends IntentInfo {
+        /** The activity this intent info is associated with. */
         public Activity activity;
 
+        /**
+         * Constructs from a platform-parsed IntentInfo.
+         *
+         * @param intentInfo the platform intent filter info to copy from
+         */
         public ActivityIntentInfo(PackageParser.IntentInfo intentInfo) {
             super(intentInfo);
         }
 
+        /**
+         * Constructs from a BlackBox IntentInfo copy.
+         *
+         * @param intentInfo the BlackBox intent info to copy from
+         */
         public ActivityIntentInfo(IntentInfo intentInfo) {
             super(intentInfo);
         }
     }
 
+    /**
+     * Intent filter information associated with a {@link Service} component.
+     * Links an intent filter to its parent service for resolution purposes.
+     */
     public static class ServiceIntentInfo extends IntentInfo {
+        /** The service this intent info is associated with. */
         public Service service;
 
+        /**
+         * Constructs from a platform-parsed IntentInfo.
+         *
+         * @param intentInfo the platform intent filter info to copy from
+         */
         public ServiceIntentInfo(PackageParser.IntentInfo intentInfo) {
             super(intentInfo);
         }
 
+        /**
+         * Constructs from a BlackBox IntentInfo copy.
+         *
+         * @param intentInfo the BlackBox intent info to copy from
+         */
         public ServiceIntentInfo(IntentInfo intentInfo) {
             super(intentInfo);
         }
     }
 
+    /**
+     * Intent filter information associated with a {@link Provider} component.
+     * Links an intent filter to its parent content provider for resolution purposes.
+     */
     public static class ProviderIntentInfo extends IntentInfo {
+        /** The content provider this intent info is associated with. */
         public Provider provider;
 
+        /**
+         * Constructs from a platform-parsed IntentInfo.
+         *
+         * @param intentInfo the platform intent filter info to copy from
+         */
         public ProviderIntentInfo(PackageParser.IntentInfo intentInfo) {
             super(intentInfo);
         }
 
+        /**
+         * Constructs from a BlackBox IntentInfo copy.
+         *
+         * @param intentInfo the BlackBox intent info to copy from
+         */
         public ProviderIntentInfo(IntentInfo intentInfo) {
             super(intentInfo);
         }
     }
 
+    /**
+     * Parcelable wrapper for APK signing details (Android Pie and above).
+     * Holds the signing certificate chain used to verify APK integrity
+     * within the virtual environment.
+     */
     public static final class SigningDetails implements Parcelable {
+        /** Array of signing certificates for this package. */
         public Signature[] signatures;
 
+        /** Sentinel value indicating unknown signing details. */
         public static final PackageParser.SigningDetails UNKNOWN = null;
 
+        /**
+         * Returns a bitmask indicating the set of special object types
+         * marshaled by this Parcelable.
+         *
+         * @return 0, indicating no special objects
+         */
         @Override
         public int describeContents() {
             return 0;
         }
 
+        /**
+         * Flattens this SigningDetails object into a Parcel.
+         *
+         * @param dest  the Parcel in which the object should be written
+         * @param flags additional flags about how the object should be written
+         */
         @Override
         public void writeToParcel(Parcel dest, int flags) {
             dest.writeTypedArray(this.signatures, flags);
         }
 
+        /**
+         * Constructs SigningDetails from a platform-parsed SigningDetails.
+         * Uses past signing certificates if available, otherwise uses current signatures.
+         *
+         * @param signingDetails the platform signing details to copy from
+         */
         public SigningDetails(PackageParser.SigningDetails signingDetails) {
             if (signingDetails.pastSigningCertificates == null) {
                 this.signatures = signingDetails.signatures;
@@ -475,15 +665,32 @@ public class BPackage implements Parcelable {
         };
     }
 
+    /**
+     * Parcelable wrapper for intent filter information associated with a component.
+     * Holds the raw {@link IntentFilter}, display metadata (label, icon), and
+     * whether this filter represents a default handler within the virtual environment.
+     */
     public static class IntentInfo implements Parcelable {
+        /** The underlying intent filter defining action, category, and data matches. */
         public IntentFilter intentFilter;
+        /** Whether this intent info declares itself as a default handler. */
         public boolean hasDefault;
+        /** Resource ID for the label string, or 0 if not specified. */
         public int labelRes;
+        /** Non-localized label string, or null if not specified. */
         public String nonLocalizedLabel;
+        /** Drawable resource ID for the icon, or 0 if not specified. */
         public int icon;
+        /** Drawable resource ID for the logo, or 0 if not specified. */
         public int logo;
+        /** Drawable resource ID for the banner, or 0 if not specified. */
         public int banner;
 
+        /**
+         * Constructs an IntentInfo by copying data from a platform-parsed IntentInfo.
+         *
+         * @param intentInfo the platform intent filter info to copy from
+         */
         public IntentInfo(PackageParser.IntentInfo intentInfo) {
             this.intentFilter = intentInfo;
             this.hasDefault = intentInfo.hasDefault;
@@ -494,6 +701,11 @@ public class BPackage implements Parcelable {
             this.banner = intentInfo.banner;
         }
 
+        /**
+         * Constructs an IntentInfo by copying data from an existing BlackBox IntentInfo.
+         *
+         * @param intentInfo the BlackBox intent info to copy from
+         */
         public IntentInfo(IntentInfo intentInfo) {
             this.intentFilter = intentInfo.intentFilter;
             this.hasDefault = intentInfo.hasDefault;
@@ -504,11 +716,23 @@ public class BPackage implements Parcelable {
             this.banner = intentInfo.banner;
         }
 
+        /**
+         * Returns a bitmask indicating the set of special object types
+         * marshaled by this Parcelable.
+         *
+         * @return 0, indicating no special objects
+         */
         @Override
         public int describeContents() {
             return 0;
         }
 
+        /**
+         * Flattens this IntentInfo object into a Parcel.
+         *
+         * @param dest  the Parcel in which the object should be written
+         * @param flags additional flags about how the object should be written
+         */
         @Override
         public void writeToParcel(Parcel dest, int flags) {
             dest.writeParcelable(this.intentFilter, flags);
@@ -520,16 +744,14 @@ public class BPackage implements Parcelable {
             dest.writeInt(this.banner);
         }
 
+        /**
+         * Restores an IntentInfo from a previously serialized Parcel.
+         *
+         * @param in the Parcel containing serialized intent info data
+         */
         protected IntentInfo(Parcel in) {
-            this.intentFilter = in.readParcelable(BPackage.class.getClassLoader());
-            this.hasDefault = in.readByte() != 0;
-            this.labelRes = in.readInt();
-            this.nonLocalizedLabel = in.readString();
-            this.icon = in.readInt();
-            this.logo = in.readInt();
-            this.banner = in.readInt();
-        }
 
+        /** Factory for creating IntentInfo arrays and instances from Parcels. */
         public static final Creator<IntentInfo> CREATOR = new Creator<IntentInfo>() {
             @Override
             public IntentInfo createFromParcel(Parcel source) {
@@ -543,23 +765,52 @@ public class BPackage implements Parcelable {
         };
     }
 
+    /**
+     * Base class for all package components (activities, services, providers, etc.)
+     * within the virtual environment. Holds common metadata shared by every component
+     * type including the class name, metadata bundle, and associated intent filters.
+     *
+     * @param <II> the concrete IntentInfo subtype associated with this component
+     */
     public static class Component<II extends BPackage.IntentInfo> {
+        /** The owning BPackage that declared this component. */
         public BPackage owner;
+        /** List of intent filters declared for this component. */
         public ArrayList<II> intents;
+        /** Fully qualified class name of this component. */
         public String className;
+        /** Optional metadata bundle from the component's manifest declaration. */
         public Bundle metaData;
+        /** Lazily computed ComponentName combining the package name and class name. */
         public ComponentName componentName;
 
+        /**
+         * Restores a Component from a previously serialized Parcel.
+         *
+         * @param parcel the Parcel containing serialized component data
+         */
         public Component(Parcel parcel) {
             this.className = parcel.readString();
             this.metaData = parcel.readBundle(Bundle.class.getClassLoader());
         }
 
+        /**
+         * Constructs a Component by copying class name and metadata from a
+         * platform-parsed component.
+         *
+         * @param component the platform-parsed component to copy from
+         */
         public Component(PackageParser.Component<?> component) {
             this.className = component.className;
             this.metaData = component.metaData;
         }
 
+        /**
+         * Returns the {@link ComponentName} for this component, constructing it from
+         * the owning package name and class name if not already cached.
+         *
+         * @return the ComponentName, or null if both className and owner are null
+         */
         public ComponentName getComponentName() {
             if (componentName != null) {
                 return componentName;
@@ -572,11 +823,25 @@ public class BPackage implements Parcelable {
         }
     }
 
+    /**
+     * Returns a bitmask indicating the set of special object types
+     * marshaled by this Parcelable.
+     *
+     * @return 0, indicating no special objects
+     */
     @Override
     public int describeContents() {
         return 0;
     }
 
+    /**
+     * Flattens this BPackage object into a Parcel, writing all activities,
+     * receivers, providers, services, instrumentation, permissions, permission
+     * groups, signing details, and package metadata.
+     *
+     * @param dest  the Parcel in which the object should be written
+     * @param flags additional flags about how the object should be written
+     */
     @Override
     public void writeToParcel(Parcel dest, int flags) {
         int size = this.activities.size();
@@ -727,6 +992,7 @@ public class BPackage implements Parcelable {
         dest.writeParcelable(this.installOption, flags);
     }
 
+    /** Factory for creating BPackage arrays and instances from Parcels. */
     public static final Parcelable.Creator<BPackage> CREATOR = new Parcelable.Creator<BPackage>() {
         @Override
         public BPackage createFromParcel(Parcel source) {

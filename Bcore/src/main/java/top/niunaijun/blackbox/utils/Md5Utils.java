@@ -1,9 +1,5 @@
 package top.niunaijun.blackbox.utils;
 
-/**
- * Created by admin on 2017/1/8.
- */
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -12,13 +8,24 @@ import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-
+/**
+ * Utility class for computing MD5 hash digests from strings, files, and input streams.
+ * Produces lowercase hexadecimal MD5 hash strings suitable for integrity verification
+ * and cache key generation.
+ */
 public class Md5Utils {
 
     private static final char[] hexDigits = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd',
             'e', 'f' };
 
 
+    /**
+     * Computes the MD5 hash of the given input string using UTF-8 encoding.
+     *
+     * @param input the string to hash
+     * @return the lowercase hexadecimal MD5 hash string, or {@code null} if the input is {@code null}
+     *         or an error occurs
+     */
     public static String md5(String input) {
         if (input == null)
             return null;
@@ -33,6 +40,13 @@ public class Md5Utils {
         }
     }
 
+    /**
+     * Computes the MD5 hash of the contents of the given file.
+     *
+     * @param file the file whose contents will be hashed
+     * @return the lowercase hexadecimal MD5 hash string, or {@code null} if the file does not
+     *         exist, is not a regular file, or an I/O error occurs
+     */
     public static String md5(File file) {
         try {
             if (!file.isFile()) {
@@ -57,6 +71,13 @@ public class Md5Utils {
         return null;
     }
 
+    /**
+     * Computes the MD5 hash of the data read from the given input stream.
+     * The stream is closed after reading.
+     *
+     * @param in the input stream to read and hash
+     * @return the lowercase hexadecimal MD5 hash string, or {@code null} if an error occurs
+     */
     public static String md5(InputStream in) {
 
         try {

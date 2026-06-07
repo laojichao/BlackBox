@@ -7,10 +7,11 @@ import kotlinx.coroutines.launch
 import top.niunaijun.blackbox.BlackBoxCore
 
 /**
+ * Transparent activity that handles app shortcut launches.
  *
- * @Description: 快捷方式跳转activity
- * @Author: wukaicheng
- * @CreateDate: 2022/2/11 23:13
+ * Receives a package name and user ID via intent extras, launches the corresponding
+ * virtual app through [BlackBoxCore], and immediately finishes itself. This activity
+ * serves as a trampoline for home screen shortcuts that directly open virtual apps.
  */
 class ShortcutActivity:AppCompatActivity() {
 

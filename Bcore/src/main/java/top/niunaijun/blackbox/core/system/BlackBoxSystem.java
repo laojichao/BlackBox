@@ -30,18 +30,31 @@ import static top.niunaijun.blackbox.core.env.BEnvironment.EMPTY_JAR;
 import static top.niunaijun.blackbox.core.env.BEnvironment.JUNIT_JAR;
 
 /**
- * Created by Milk on 4/22/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Bootstrap entry point for the BlackBox virtual engine's system services.
+ *
+ * <p>On {@link #startup()}, initializes the {@link BEnvironment} directory
+ * tree, registers and starts all core subsystem services (package manager,
+ * user manager, activity manager, job scheduler, storage, accounts,
+ * location, notifications, Xposed, process management, and package
+ * installer), installs any pre-configured system packages, and copies
+ * auxiliary JAR resources from the host app's assets.</p>
+ *
+ * <p>This class is a thread-safe singleton; {@link #startup()} is
+ * idempotent and will return immediately on subsequent calls.</p>
  */
 public class BlackBoxSystem {
     private static BlackBoxSystem sBlackBoxSystem;
+    /** Ordered list of all registered system services. */
     private final List<ISystemService> mServices = new ArrayList<>();
+    /** Guard ensuring {@link #startup()} runs at most once. */
     private final static AtomicBoolean isStartup = new AtomicBoolean(false);
 
+    /**
+     * Returns the singleton {@code BlackBoxSystem} instance (lazy,
+     * double-checked locking).
+     *
+     * @return the system instance
+     */
     public static BlackBoxSystem getSystem() {
         if (sBlackBoxSystem == null) {
             synchronized (BlackBoxSystem.class) {
@@ -53,6 +66,18 @@ public class BlackBoxSystem {
         return sBlackBoxSystem;
     }
 
+    /**
+     * Boots all virtual engine subsystems.  Safe to call multiple times;
+     * only the first invocation performs actual work.
+     *
+     * <p>Startup sequence:</p>
+     * <ol>
+     *   <li>Create environment directories via {@link BEnvironment#load()}</li>
+     *   <li>Register and notify all {@link ISystemService} implementations</li>
+     *   <li>Install any packages listed in {@link AppSystemEnv#getPreInstallPackages()}</li>
+     *   <li>Copy {@code junit.jar} and {@code empty.jar} from assets to cache</li>
+     * </ol>
+     */
     public void startup() {
         if (isStartup.getAndSet(true))
             return;
@@ -87,6 +112,10 @@ public class BlackBoxSystem {
         initJarEnv();
     }
 
+    /**
+     * Copies auxiliary JAR files ({@code junit.jar} and {@code empty.jar})
+     * from the host app's assets into the virtual cache directory.
+     */
     private void initJarEnv() {
         try {
             InputStream junit = BlackBoxCore.getContext().getAssets().open("junit.jar");

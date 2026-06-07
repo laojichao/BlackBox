@@ -7,11 +7,18 @@ import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
 /**
+ * A property delegate that persists values in Android [SharedPreferences].
  *
- * @desc:目前只支持 5种基本数据类型，如果要支持obj，请继承该类并重写他的相关方法 findData/putData
+ * Supports the five basic SharedPreferences types: [Int], [Long], [Float], [String],
+ * and [Boolean]. To support additional types (e.g., objects via serialization),
+ * subclass this delegate and override [findData] and [putData].
  *
- * @author: mini
- * @created by 2021/5/10
+ * The property name is used as the SharedPreferences key automatically.
+ *
+ * @param Data The type of the delegated property value.
+ * @param context The Android context used to access SharedPreferences.
+ * @param default The default value returned when no stored value exists for the key.
+ * @param spName The SharedPreferences file name. Defaults to the class simple name if null.
  */
 open class AppSharedPreferenceDelegate<Data>(context: Context, private val default: Data, spName: String? = null) : ReadWriteProperty<Any, Data?> {
 
@@ -24,14 +31,36 @@ open class AppSharedPreferenceDelegate<Data>(context: Context, private val defau
         return@lazy context.getSharedPreferences(tmpCacheName, Context.MODE_PRIVATE)
     }
 
+    /**
+     * Reads the value for the delegated property from SharedPreferences.
+     *
+     * @param thisRef The object that owns the property.
+     * @param property The metadata of the delegated property.
+     * @return The stored value, or [default] if no value exists.
+     */
     override fun getValue(thisRef: Any, property: KProperty<*>): Data {
         return findData(property.name, default)
     }
 
+    /**
+     * Writes a new value for the delegated property to SharedPreferences.
+     *
+     * @param thisRef The object that owns the property.
+     * @param property The metadata of the delegated property.
+     * @param value The new value to store, or null to remove the key.
+     */
     override fun setValue(thisRef: Any, property: KProperty<*>, value: Data?) {
         putData(property.name, value)
     }
 
+    /**
+     * Reads a value from SharedPreferences by key.
+     *
+     * @param key The SharedPreferences key to look up.
+     * @param default The default value to return if the key does not exist.
+     * @return The stored value cast to [Data], or [default] if not found.
+     * @throws IllegalArgumentException If [Data] is not one of the five supported types.
+     */
     protected fun findData(key: String, default: Data): Data {
         with(mSharedPreferences) {
             val result: Any = when (default) {
@@ -46,6 +75,13 @@ open class AppSharedPreferenceDelegate<Data>(context: Context, private val defau
         }
     }
 
+    /**
+     * Writes a value to SharedPreferences by key. Removes the key if the value is null.
+     *
+     * @param key The SharedPreferences key to write to.
+     * @param value The value to store, or null to remove the key.
+     * @throws IllegalArgumentException If [Data] is not one of the five supported types.
+     */
     protected fun putData(key: String, value: Data?) {
         mSharedPreferences.edit {
             if (value == null) {

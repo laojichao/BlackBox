@@ -55,12 +55,10 @@ import top.niunaijun.blackbox.utils.Slog;
 import top.niunaijun.blackbox.utils.compat.BuildCompat;
 
 /**
- * Created by Milk on 3/30/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Central manager for all system service hooks and instrumentation in the virtual
+ * environment. Registers and initializes proxy stubs for Android system services
+ * (ActivityManager, PackageManager, TelephonyManager, etc.) based on the current
+ * API level. Provides environment checking to re-inject hooks when tampered with.
  */
 public class HookManager {
     public static final String TAG = "HookManager";
@@ -69,10 +67,20 @@ public class HookManager {
 
     private final Map<Class<?>, IInjectHook> mInjectors = new HashMap<>();
 
+    /**
+     * Returns the singleton instance of {@link HookManager}.
+     *
+     * @return the singleton HookManager instance
+     */
     public static HookManager get() {
         return sHookManager;
     }
 
+    /**
+     * Initializes all system service hooks. Registers API-level-specific proxy stubs
+     * and injects them into the current process. Only runs in the black (virtual)
+     * or server process.
+     */
     public void init() {
         if (BlackBoxCore.get().isBlackProcess() || BlackBoxCore.get().isServerProcess()) {
             addInjector(new IDisplayManagerProxy());
@@ -157,6 +165,12 @@ public class HookManager {
         injectAll();
     }
 
+    /**
+     * Checks the environment for a specific hook class and re-injects it if the
+     * environment has been tampered with.
+     *
+     * @param clazz the hook class to check
+     */
     public void checkEnv(Class<?> clazz) {
         IInjectHook iInjectHook = mInjectors.get(clazz);
         if (iInjectHook != null && iInjectHook.isBadEnv()) {
@@ -165,6 +179,10 @@ public class HookManager {
         }
     }
 
+    /**
+     * Checks the environment for all registered hook classes and re-injects any
+     * that have been tampered with.
+     */
     public void checkAll() {
         for (Class<?> aClass : mInjectors.keySet()) {
             IInjectHook iInjectHook = mInjectors.get(aClass);
@@ -175,10 +193,18 @@ public class HookManager {
         }
     }
 
+    /**
+     * Adds a hook injector to the registry.
+     *
+     * @param injectHook the IInjectHook to register
+     */
     void addInjector(IInjectHook injectHook) {
         mInjectors.put(injectHook.getClass(), injectHook);
     }
 
+    /**
+     * Injects all registered hooks into the current process.
+     */
     void injectAll() {
         for (IInjectHook value : mInjectors.values()) {
             try {

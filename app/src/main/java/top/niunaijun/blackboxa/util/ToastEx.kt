@@ -6,23 +6,37 @@ import androidx.annotation.StringRes
 import top.niunaijun.blackboxa.app.App
 
 /**
- *
- * @Description:
- * @Author: wukaicheng
- * @CreateDate: 2021/5/2 0:13
+ * Holds a reference to the currently displayed [Toast] to allow cancellation
+ * before showing a new one, preventing toast queue buildup.
  */
-var toastImpl:Toast? = null
+var toastImpl: Toast? = null
 
-fun Context.toast(msg:String){
+/**
+ * Extension function on [Context] that shows a short-duration [Toast] message.
+ * Cancels any previously displayed toast before showing the new one.
+ *
+ * @param msg The message text to display in the toast.
+ */
+fun Context.toast(msg: String) {
     toastImpl?.cancel()
-    toastImpl = Toast.makeText(this,msg,Toast.LENGTH_SHORT)
+    toastImpl = Toast.makeText(this, msg, Toast.LENGTH_SHORT)
     toastImpl?.show()
 }
 
-fun toast(msg: String){
+/**
+ * Shows a short-duration [Toast] message using the application context.
+ *
+ * @param msg The message text to display in the toast.
+ */
+fun toast(msg: String) {
     App.getContext().toast(msg)
 }
 
-fun toast(@StringRes msgID:Int){
+/**
+ * Shows a short-duration [Toast] message by resolving a string resource ID.
+ *
+ * @param msgID The string resource ID to display.
+ */
+fun toast(@StringRes msgID: Int) {
     toast(getString(msgID))
 }

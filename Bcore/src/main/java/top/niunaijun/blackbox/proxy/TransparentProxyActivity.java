@@ -1,7 +1,12 @@
 package top.niunaijun.blackbox.proxy;
 
 /**
- * Created by BlackBox on 2022/3/17.
+ * A transparent variant of {@link ProxyActivity} used for activities that should appear
+ * transparent to the user, such as dialog-themed or overlay activities in virtual apps.
+ * Inherits the proxy redirect behavior from ProxyActivity. Multiple static inner classes
+ * (P0-P49) provide distinct manifest entries for concurrent transparent activity instances.
+ *
+ * @author BlackBox
  */
 public class TransparentProxyActivity extends ProxyActivity {
 

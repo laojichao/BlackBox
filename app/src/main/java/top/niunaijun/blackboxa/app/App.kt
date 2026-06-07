@@ -5,10 +5,10 @@ import android.app.Application
 import android.content.Context
 
 /**
+ * Application class that initializes the BlackBox host environment.
  *
- * @Description:
- * @Author: wukaicheng
- * @CreateDate: 2021/4/29 21:21
+ * Delegates lifecycle callbacks to [AppManager] for BlackBox core initialization
+ * and third-party service setup. Provides a static application context via [getContext].
  */
 class App : Application() {
 
@@ -18,6 +18,11 @@ class App : Application() {
         @Volatile
         private lateinit var mContext: Context
 
+        /**
+         * Returns the global application context.
+         *
+         * @return the application [Context]
+         */
         @JvmStatic
         fun getContext(): Context {
             return mContext

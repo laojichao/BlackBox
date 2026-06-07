@@ -6,16 +6,22 @@ import top.niunaijun.blackbox.entity.pm.InstallOption;
 import top.niunaijun.blackbox.utils.FileUtils;
 
 /**
- * Created by Milk on 4/24/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
- * 创建包相关的信息
+ * Executor that creates the application directory structure for a newly installed package.
+ * <p>
+ * Deletes any pre-existing app directory for the package, then creates fresh directories
+ * for the application root and native libraries. This is typically the first step in the
+ * installation pipeline, ensuring a clean directory layout before files are copied.
  */
 public class CreatePackageExecutor implements Executor {
 
+    /**
+     * Executes the directory creation step of package installation.
+     *
+     * @param ps     the package settings identifying the package to create directories for
+     * @param option the installation options (unused in this executor)
+     * @param userId the virtual user ID (unused in this executor)
+     * @return always returns 0 (success)
+     */
     @Override
     public int exec(BPackageSettings ps, InstallOption option, int userId) {
         FileUtils.deleteDir(BEnvironment.getAppDir(ps.pkg.packageName));

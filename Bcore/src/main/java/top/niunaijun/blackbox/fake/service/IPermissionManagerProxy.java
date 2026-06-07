@@ -14,22 +14,46 @@ import top.niunaijun.blackbox.utils.Reflector;
 import top.niunaijun.blackbox.utils.compat.BuildCompat;
 
 /**
- * Created by BlackBox on 2022/3/2.
+ * Proxy for the Android Permission Manager system service (IPermissionManager).
+ * Intercepts permission-related operations, DEX optimization calls, instant app
+ * queries, and device identifier access checks to return safe default values
+ * within the virtual environment. Replaces the system service and the
+ * ApplicationPackageManager's mPermissionManager field via reflection.
+ *
+ * @author BlackBox
  */
 public class IPermissionManagerProxy extends BinderInvocationStub {
+    /** Tag used for logging within this proxy. */
     public static final String TAG = "IPermissionManagerProxy";
 
+    /** The system service name for the permission manager. */
     private static final String P = "permissionmgr";
 
+    /**
+     * Constructs a new proxy by obtaining the Permission Manager binder service.
+     */
     public IPermissionManagerProxy() {
         super(BRServiceManager.get().getService(P));
     }
 
+    /**
+     * Returns the IPermissionManager interface instance from the system service.
+     *
+     * @return the original IPermissionManager binder interface
+     */
     @Override
     protected Object getWho() {
         return BRIPermissionManagerStub.get().asInterface(BRServiceManager.get().getService(P));
     }
 
+    /**
+     * Replaces the system Permission Manager service with this proxy instance,
+     * updating both the ActivityThread's sPermissionManager reference and the
+     * ApplicationPackageManager's mPermissionManager field via reflection.
+     *
+     * @param baseInvocation the original service invocation object
+     * @param proxyInvocation the proxy invocation object to inject
+     */
     @Override
     protected void inject(Object baseInvocation, Object proxyInvocation) {
         replaceSystemService("permissionmgr");
@@ -47,6 +71,11 @@ public class IPermissionManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Binds value-returning method hooks for permission operations, DEX optimization,
+     * instant app checks, and device identifier access control. Additional hooks are
+     * registered conditionally for Android Oreo and above.
+     */
     @Override
     protected void onBindMethod() {
         super.onBindMethod();
@@ -67,6 +96,11 @@ public class IPermissionManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Checks if the environment has been corrupted by another proxy.
+     *
+     * @return always returns false
+     */
     @Override
     public boolean isBadEnv() {
         return false;

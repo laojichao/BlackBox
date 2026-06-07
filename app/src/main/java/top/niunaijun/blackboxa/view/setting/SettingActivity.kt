@@ -8,6 +8,12 @@ import top.niunaijun.blackboxa.databinding.ActivitySettingBinding
 import top.niunaijun.blackboxa.util.inflate
 import top.niunaijun.blackboxa.view.base.BaseActivity
 
+/**
+ * Settings screen that hosts the [SettingFragment] preference UI.
+ *
+ * Displays application configuration options including Xposed module settings,
+ * root/Xposed hiding toggles, daemon service control, and GMS management.
+ */
 class SettingActivity : BaseActivity() {
 
     private val viewBinding: ActivitySettingBinding by inflate()
@@ -22,6 +28,11 @@ class SettingActivity : BaseActivity() {
     }
 
     companion object{
+        /**
+         * Launches the [SettingActivity] from the given context.
+         *
+         * @param context the context used to start the activity
+         */
         fun start(context: Context){
             val intent = Intent(context,SettingActivity::class.java)
             intent.action = Intent.ACTION_OPEN_DOCUMENT

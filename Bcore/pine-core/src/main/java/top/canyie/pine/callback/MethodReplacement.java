@@ -5,17 +5,20 @@ import java.lang.reflect.Member;
 import top.canyie.pine.Pine;
 
 /**
- * Like {@link MethodHook} but replaces the whole method call.
- * Use this will always prevent the original method call and remaining hooks to be invoked expect
- * you manually call them. Make sure you are sure you really want this!
+ * A {@link MethodHook} subclass that completely replaces the original method implementation.
+ * <p>
+ * When registered, this always prevents the original method call and skips remaining hooks,
+ * unless you manually invoke the original via {@link Pine.CallFrame#invokeOriginalMethod()}.
+ * Ensure you understand the implications before using this.
+ * </p>
+ *
  * @author canyie
  * @see MethodHook
- * @see Pine#hook(java.lang.reflect.Member, MethodHook) 
+ * @see Pine#hook(java.lang.reflect.Member, MethodHook)
  */
 public abstract class MethodReplacement extends MethodHook {
     /**
-     * Replace the method implementation to empty implementation. In other words, this method call 
-     * will do nothing and return null.
+     * A no-op replacement that does nothing and returns {@code null} for every call.
      */
     public static final MethodReplacement DO_NOTHING = new MethodReplacement() {
         @Override protected Object replaceCall(Pine.CallFrame callFrame) {

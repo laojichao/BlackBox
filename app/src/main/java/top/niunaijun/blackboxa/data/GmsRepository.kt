@@ -9,14 +9,19 @@ import top.niunaijun.blackboxa.bean.GmsInstallBean
 import top.niunaijun.blackboxa.util.getString
 
 /**
+ * Repository for managing Google Mobile Services (GMS) installation status
+ * across virtual users in the BlackBox environment.
  *
- * @Description:
- * @Author: BlackBox
- * @CreateDate: 2022/3/2 21:14
+ * Provides operations to query, install, and uninstall GMS for individual virtual users.
  */
 class GmsRepository {
 
-
+    /**
+     * Retrieves the GMS installation status for all virtual users and posts
+     * the result to [mInstalledLiveData].
+     *
+     * @param mInstalledLiveData LiveData to receive the list of [GmsBean] results.
+     */
     fun getGmsInstalledList(mInstalledLiveData: MutableLiveData<List<GmsBean>>) {
         val userList = arrayListOf<GmsBean>()
 
@@ -32,6 +37,13 @@ class GmsRepository {
         mInstalledLiveData.postValue(userList)
     }
 
+    /**
+     * Installs Google Mobile Services for the specified virtual user.
+     * Posts a [GmsInstallBean] with the operation result to [mUpdateInstalledLiveData].
+     *
+     * @param userID The virtual user ID to install GMS for.
+     * @param mUpdateInstalledLiveData LiveData to receive the [GmsInstallBean] result.
+     */
     fun installGms(
         userID: Int,
         mUpdateInstalledLiveData: MutableLiveData<GmsInstallBean>
@@ -48,6 +60,14 @@ class GmsRepository {
         mUpdateInstalledLiveData.postValue(bean)
     }
 
+    /**
+     * Uninstalls Google Mobile Services from the specified virtual user.
+     * Only attempts uninstall if GMS is currently installed for the user.
+     * Posts a [GmsInstallBean] with the operation result to [mUpdateInstalledLiveData].
+     *
+     * @param userID The virtual user ID to uninstall GMS from.
+     * @param mUpdateInstalledLiveData LiveData to receive the [GmsInstallBean] result.
+     */
     fun uninstallGms(
         userID: Int,
         mUpdateInstalledLiveData: MutableLiveData<GmsInstallBean>

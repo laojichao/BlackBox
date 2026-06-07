@@ -20,12 +20,22 @@ import java.util.concurrent.ConcurrentHashMap;
 import top.canyie.pine.callback.MethodHook;
 
 /**
- * The bridge class provides main APIs for you.
+ * The bridge class providing the main APIs for the Pine method hooking framework.
+ * <p>
+ * Pine allows intercepting and modifying Android method calls at runtime by manipulating
+ * ART (Android Runtime) internals. It supports inline hooking and entry point replacement
+ * across ARM32, ARM64, and x86 architectures.
+ * </p>
+ * <p>
+ * Usage: Initialize with {@link #ensureInitialized()}, then hook methods with {@link #hook(Member, MethodHook)}.
+ * </p>
+ *
  * @author canyie
  */
 @SuppressWarnings("WeakerAccess")
 public final class Pine {
     private static final String TAG = "Pine";
+    /** Shared empty Object array used to avoid allocations for zero-argument calls. */
     public static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
     private static final int ARCH_ARM = 1;
     private static final int ARCH_ARM64 = 2;
@@ -405,6 +415,13 @@ public final class Pine {
         return sHookRecords.containsKey(getArtMethod(method));
     }
 
+    /**
+     * Returns the {@link HookRecord} associated with the given ART method pointer.
+     *
+     * @param artMethod the native ART method pointer.
+     * @return the hook record for the given method.
+     * @throws AssertionError if no hook record exists for the given pointer.
+     */
     public static HookRecord getHookRecord(long artMethod) {
         HookRecord result = sHookRecords.get(artMethod);
         if (result == null) {
@@ -413,11 +430,25 @@ public final class Pine {
         return result;
     }
 
+    /**
+     * Resolves a native ART object pointer to its Java object reference.
+     *
+     * @param thread  the current ART thread pointer.
+     * @param address the native object address.
+     * @return the Java object, or {@code null} if the address is 0.
+     */
     public static Object getObject(long thread, long address) {
         if (address == 0) return null;
         return getObject0(thread, address);
     }
 
+    /**
+     * Returns the native ART address of the given Java object.
+     *
+     * @param thread the current ART thread pointer.
+     * @param o      the Java object.
+     * @return the native address, or 0 if the object is {@code null}.
+     */
     public static long getAddress(long thread, Object o) {
         if (o == null) return 0;
         return getAddress0(thread, o);
@@ -627,6 +658,18 @@ public final class Pine {
         }
     }
 
+    /**
+     * Internal entry point called from the architecture-specific bridge methods when a hooked
+     * method is invoked. This method dispatches to registered {@link MethodHook} callbacks
+     * in order: all {@code beforeCall} callbacks, then the original method (unless skipped),
+     * then all {@code afterCall} callbacks in reverse order.
+     *
+     * @param hookRecord the hook record for the invoked method.
+     * @param thisObject the {@code this} object of the invocation, or {@code null} for static methods.
+     * @param args       the arguments passed to the method.
+     * @return the result of the method call (after all callbacks have been applied).
+     * @throws Throwable if the original method or a callback throws an exception.
+     */
     public static Object handleCall(HookRecord hookRecord, Object thisObject, Object[] args)
             throws Throwable {
         // WARNING: DO NOT print thisObject or args, else the toString() method will be called on it
@@ -748,14 +791,45 @@ public final class Pine {
 
     private static native long getAddress0(long thread, Object o);
 
+    /**
+     * Native method that extracts method arguments from ARM32 registers and stack.
+     *
+     * @param extras  the extras pointer containing saved register values.
+     * @param sp      the stack pointer at the time of the call.
+     * @param crOut   output array for core register values (r1-r3).
+     * @param stack   output array for stack arguments.
+     * @param fpOut   output array for floating-point register values (s0-s15).
+     */
     public static native void getArgsArm32(int extras, int sp, int[] crOut, int[] stack, float[] fpOut);
 
+    /**
+     * Native method that extracts method arguments from ARM64 registers and stack.
+     *
+     * @param extras     the extras pointer containing saved register values.
+     * @param sp         the stack pointer at the time of the call.
+     * @param typeWides  array indicating which parameters are wide (64-bit).
+     * @param crOut      output array for core register values (x1-x3).
+     * @param stack      output array for stack arguments.
+     * @param fpOut      output array for floating-point register values (d0-d7).
+     */
     public static native void getArgsArm64(long extras, long sp, boolean[] typeWides, long[] crOut, long[] stack, double[] fpOut);
 
+    /**
+     * Native method that extracts method arguments from x86 registers and stack.
+     *
+     * @param extras the extras pointer containing saved register values.
+     * @param out    output array for argument values as ints.
+     * @param ebx    the ebx register value (used for additional argument passing).
+     */
     public static native void getArgsX86(int extras, int[] out, int ebx);
 
     private static native void updateDeclaringClass(Member origin, Method backup);
 
+    /**
+     * Returns the native ART thread pointer for the current thread.
+     *
+     * @return the ART thread pointer as a {@code long}.
+     */
     public static native long currentArtThread0();
 
     private static native void setDebuggable0(boolean debuggable);
@@ -764,10 +838,21 @@ public final class Pine {
 
     private static native void makeClassesVisiblyInitialized(long thread);
 
+    /**
+     * Clones the native extras structure for the given pointer, releasing the original lock
+     * to minimize lock hold time during argument extraction.
+     *
+     * @param origin the original extras pointer.
+     * @return the cloned extras pointer.
+     */
     public static native long cloneExtras(long origin);
 
     /**
-     * Interface definition for a callback to be invoked when a method is hooked.
+     * Interface definition for a callback to be invoked before/after a method is hooked.
+     * <p>
+     * Use {@link Pine#setHookListener(HookListener)} to register a listener. Unlike {@link HookHandler},
+     * the listener does not control the hooking process -- it is only notified.
+     * </p>
      */
     public interface HookListener {
         /**
@@ -786,7 +871,11 @@ public final class Pine {
     }
 
     /**
-     * Interface definition for an implementation to be invoked when load our native library (libpine.so)
+     * Interface definition for a callback to be invoked when Pine needs to load its native library.
+     * Implement this to customize how {@code libpine.so} is loaded.
+     *
+     * @see Pine.LibLoader
+     * @see PineConfig#libLoader
      */
     public interface LibLoader {
         /**
@@ -796,7 +885,8 @@ public final class Pine {
     }
 
     /**
-     * Enum definition for how to hook method.
+     * Defines constants for method hooking strategies.
+     *
      * @see Pine#setHookMode(int)
      */
     public interface HookMode {
@@ -818,48 +908,109 @@ public final class Pine {
     }
 
     /**
-     * Internal API. Implement the hook logic by implementing this interface.
+     * Internal API. Defines the interface for implementing the actual hook logic.
+     * <p>
+     * Implementations decide how to perform the hook (inline or replacement) and manage
+     * callback registration/unregistration. Use {@link Pine#setHookHandler(HookHandler)} to
+     * replace the default handler.
+     * </p>
+     *
      * @see Pine#setHookHandler(HookHandler)
      */
     public interface HookHandler {
+        /**
+         * Handles the hooking of a method.
+         *
+         * @param hookRecord            the hook record for the target method.
+         * @param hook                  the callback to register, or {@code null} to skip registration.
+         * @param modifiers             the modifiers of the target method.
+         * @param newMethod             {@code true} if this is the first time hooking this method.
+         * @param canInitDeclaringClass whether initializing the declaring class is allowed.
+         * @return an {@link MethodHook.Unhook} handle, or {@code null} if hook was {@code null}.
+         */
         MethodHook.Unhook handleHook(HookRecord hookRecord, MethodHook hook, int modifiers,
                                      boolean newMethod, boolean canInitDeclaringClass);
+        /**
+         * Handles the unhooking (unregistration) of a callback from a method.
+         *
+         * @param hookRecord the hook record for the target method.
+         * @param hook       the callback to unregister.
+         */
         void handleUnhook(HookRecord hookRecord, MethodHook hook);
     }
 
     /**
-     * Internal API. Record hook info about a method.
+     * Internal API. Stores all information related to a hooked method, including the target
+     * method reference, its native ART method pointer, the backup method for calling the
+     * original implementation, and the set of registered callbacks.
      */
     public static final class HookRecord {
+        /** The original Java method or constructor that was hooked. */
         public final Member target;
+        /** The native ART method pointer for the target method. */
         public final long artMethod;
+        /** The backup method generated by Pine to invoke the original implementation. */
         public Method backup;
+        /** Whether the target method is static. */
         public boolean isStatic;
+        /** The number of parameters of the target method. */
         public int paramNumber;
+        /** The parameter types of the target method. */
         public Class<?>[] paramTypes;
         private Set<MethodHook> callbacks = new HashSet<>();
 
+        /**
+         * Creates a new hook record for the given method.
+         *
+         * @param target    the target method or constructor.
+         * @param artMethod the native ART method pointer.
+         */
         public HookRecord(Member target, long artMethod) {
             this.target = target;
             this.artMethod = artMethod;
         }
 
+        /**
+         * Adds a hook callback to this record.
+         *
+         * @param callback the callback to add.
+         */
         public synchronized void addCallback(MethodHook callback) {
             callbacks.add(callback);
         }
 
+        /**
+         * Removes a hook callback from this record.
+         *
+         * @param callback the callback to remove.
+         */
         public synchronized void removeCallback(MethodHook callback) {
             callbacks.remove(callback);
         }
 
+        /**
+         * Returns whether this hook record has no registered callbacks.
+         *
+         * @return {@code true} if no callbacks are registered.
+         */
         public synchronized boolean emptyCallbacks() {
             return callbacks.isEmpty();
         }
 
+        /**
+         * Returns a snapshot of all currently registered callbacks.
+         *
+         * @return an array of registered {@link MethodHook} callbacks.
+         */
         public synchronized MethodHook[] getCallbacks() {
             return callbacks.toArray(new MethodHook[callbacks.size()]);
         }
 
+        /**
+         * Returns whether this hook record is in a pending state (backup method not yet set).
+         *
+         * @return {@code true} if the backup method is not yet available.
+         */
         public boolean isPending() {
             return backup == null;
         }

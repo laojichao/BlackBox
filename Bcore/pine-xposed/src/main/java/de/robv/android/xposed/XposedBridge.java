@@ -54,16 +54,30 @@ public final class XposedBridge {
 
 	/**
 	 * Returns the currently installed version of the Xposed framework.
+	 *
+	 * @return the Xposed bridge version number
 	 */
 	public static int getXposedVersion() {
 		return XPOSED_BRIDGE_VERSION;
 	}
 
+	/**
+	 * Sets the Xposed framework version number. Used by the Pine compatibility layer to report
+	 * the emulated Xposed version.
+	 *
+	 * @param version the version number to set
+	 */
 	// Pine added
 	public static void setXposedVersion(int version) {
 		XPOSED_BRIDGE_VERSION = version;
 	}
 
+	/**
+	 * Checks whether a specific feature is supported by this Xposed implementation.
+	 *
+	 * @param featureName the feature identifier to check (case-insensitive)
+	 * @return {@code true} if the feature is supported
+	 */
 	// Pine added: New API for querying supported features
 	public static boolean isFeatureSupported(String featureName) {
 		for (String f : sSupportedFeatures) {
@@ -72,10 +86,21 @@ public final class XposedBridge {
 		return false;
 	}
 
+	/**
+	 * Returns the list of features supported by this Xposed implementation.
+	 *
+	 * @return an array of feature identifier strings
+	 */
 	public static String[] getSupportedFeatures() {
 		return sSupportedFeatures;
 	}
 
+	/**
+	 * Sets the list of features supported by this Xposed implementation. This is typically called
+	 * by the framework during initialization.
+	 *
+	 * @param features an array of feature identifier strings
+	 */
 	public static void setSupportedFeatures(String[] features) {
 		sSupportedFeatures = features;
 	}

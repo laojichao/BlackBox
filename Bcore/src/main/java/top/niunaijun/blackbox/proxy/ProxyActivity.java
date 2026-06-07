@@ -15,16 +15,24 @@ import top.niunaijun.blackbox.proxy.record.ProxyPendingRecord;
 import top.niunaijun.blackbox.utils.Slog;
 
 /**
- * Created by Milk on 3/28/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Proxy Activity stub that acts as a placeholder declared in the host app's manifest.
+ * When launched, it immediately finishes itself and redirects to the actual virtual app's
+ * Activity using the target Intent stored in {@link ProxyActivityRecord}. Multiple static
+ * inner classes (P0-P49) exist to provide distinct component entries in the manifest,
+ * allowing concurrent virtual activities to be launched in separate proxy slots.
+ *
+ * @author Milk
  */
 public class ProxyActivity extends Activity {
     public static final String TAG = "ProxyActivity";
 
+    /**
+     * Called when the proxy activity is created. Finishes immediately, verifies the hook
+     * environment, extracts the target Intent from the proxy record, and starts the real
+     * virtual Activity.
+     *
+     * @param savedInstanceState the saved instance state bundle, or {@code null} if none
+     */
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);

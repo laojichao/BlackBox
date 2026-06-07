@@ -57,17 +57,28 @@ import static android.content.pm.PackageManager.GET_META_DATA;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 
 /**
- * Created by Milk on 3/30/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Proxy for the Android Activity Manager system service (IActivityManager).
+ * Intercepts core system service operations including content provider access,
+ * service lifecycle (start/stop/bind/unbind), broadcast dispatching, receiver
+ * registration, intent sender creation, permission checks, and process management.
+ * All operations are redirected through the virtual environment's activity manager
+ * to maintain proper isolation between virtual app instances and the host system.
+ * Works in conjunction with {@link ActivityManagerCommonProxy} which handles
+ * common activity lifecycle methods.
+ *
+ * @author Milk
  */
 @ScanClass(ActivityManagerCommonProxy.class)
 public class IActivityManagerProxy extends ClassInvocationStub {
+    /** Tag for logging. */
     public static final String TAG = "ActivityManagerStub";
 
+    /**
+     * Returns the IActivityManager singleton instance from the system.
+     * Handles API differences between Android Oreo+ and Lollipop+.
+     *
+     * @return the IActivityManager singleton instance
+     */
     @Override
     protected Object getWho() {
         Object iActivityManager = null;
@@ -79,6 +90,13 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         return BRSingleton.get(iActivityManager).get();
     }
 
+    /**
+     * Replaces the system IActivityManager singleton with this proxy instance.
+     * Handles API differences between Android Oreo+ and Lollipop+.
+     *
+     * @param base the original service invocation object (unused)
+     * @param proxy the proxy invocation object to inject as the singleton
+     */
     @Override
     protected void inject(Object base, Object proxy) {
         Object iActivityManager = null;
@@ -90,11 +108,20 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         BRSingleton.get(iActivityManager)._set_mInstance(proxy);
     }
 
+    /**
+     * Checks if the proxy has been replaced by another instance.
+     *
+     * @return true if the current singleton does not match this proxy
+     */
     @Override
     public boolean isBadEnv() {
         return getProxyInvocation() != getWho();
     }
 
+    /**
+     * Called after method hooks are bound. Adds additional package-aware proxies
+     * for methods that require package name replacement.
+     */
     @Override
     protected void onBindMethod() {
         super.onBindMethod();
@@ -103,8 +130,24 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         addMethodHook(new PkgMethodProxy("reportJunkFromApp"));
     }
 
+    /**
+     * Hook that intercepts {@code getContentProvider} to resolve content providers
+     * within the virtual environment. Routes provider access through the virtual
+     * package manager and activity manager, replacing authorities and user IDs
+     * as needed to maintain virtual environment isolation.
+     */
     @ProxyMethod("getContentProvider")
     public static class GetContentProvider extends MethodHook {
+    /**
+     * Hook that intercepts {@code getContentProvider} to resolve content providers
+     * within the virtual environment.
+     *
+     * @param who the original object being hooked
+     * @param method the method being intercepted
+     * @param args the method arguments containing authority string, user ID, etc.
+     * @return the resolved ContentProviderHolder, or null if provider not found
+     * @throws Exception if the underlying method call fails
+     */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Exception {
             int authIndex = getAuthIndex();
@@ -185,8 +228,24 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code startService} to route service start requests
+     * through the virtual activity manager when the target service is resolved
+     * within the virtual environment.
+     */
     @ProxyMethod("startService")
     public static class StartService extends MethodHook {
+        /**
+         * Resolves the service intent within the virtual environment and delegates
+         * the start request to the virtual activity manager if found.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args args[0] is IApplicationThread, args[1] is the Intent, args[2] is resolvedType,
+         *             args[3] is requireForeground (Android Oreo+)
+         * @return the result component name from the virtual activity manager, or the original result
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             Intent intent = (Intent) args[1];
@@ -204,6 +263,11 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             return BlackBoxCore.getBActivityManager().startService(intent, resolvedType, requireForeground, BActivityThread.getUserId());
         }
 
+        /**
+         * Returns the argument index for requireForeground based on Android version.
+         *
+         * @return the index of the requireForeground boolean, or -1 if not applicable
+         */
         public int getRequireForeground() {
             if (BuildCompat.isOreo()) {
                 return 3;
@@ -212,8 +276,21 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code stopService} to route service stop requests
+     * through the virtual activity manager.
+     */
     @ProxyMethod("stopService")
     public static class StopService extends MethodHook {
+        /**
+         * Stops the service identified by the intent via the virtual activity manager.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args args[0] is IApplicationThread, args[1] is the Intent, args[2] is resolvedType
+         * @return the result from the virtual activity manager's stopService call
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             Intent intent = (Intent) args[1];
@@ -222,8 +299,21 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code stopServiceToken} to stop a service by its
+     * component name and token via the virtual activity manager.
+     */
     @ProxyMethod("stopServiceToken")
     public static class StopServiceToken extends MethodHook {
+        /**
+         * Stops the service identified by the component name and token.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args args[0] is the ComponentName, args[1] is the IBinder token, args[2] is startId
+         * @return always returns true
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             ComponentName componentName = (ComponentName) args[0];
@@ -233,9 +323,26 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code bindService} to route service binding through
+     * the virtual activity manager. Creates a proxy service connection delegate
+     * to intercept callbacks from the bound service.
+     */
     @ProxyMethod("bindService")
     public static class BindService extends MethodHook {
 
+        /**
+         * Binds to a service within the virtual environment by resolving the intent,
+         * creating a proxy connection delegate, and routing through the virtual activity manager.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args args[0] is IApplicationThread, args[1] is IBinder, args[2] is the Intent,
+         *             args[3] is resolvedType, args[4] is IServiceConnection, args[5] is flags,
+         *             args[6] is callingPackage
+         * @return the result from binding, or 0 if the service was not resolved
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             Intent intent = (Intent) args[2];
@@ -270,15 +377,34 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             return 0;
         }
 
+        /**
+         * Checks whether this hook is active. Only enabled in black (virtual) or server processes.
+         *
+         * @return true if running in a virtual or server process
+         */
         @Override
         protected boolean isEnable() {
             return BlackBoxCore.get().isBlackProcess() || BlackBoxCore.get().isServerProcess();
         }
     }
 
+    /**
+     * Hook that intercepts {@code bindIsolatedService} (Android 10+) to route
+     * isolated service binding through the virtual activity manager. Clears the
+     * instanceName parameter before delegating to {@link BindService}.
+     */
     // 10.0
     @ProxyMethod("bindIsolatedService")
     public static class BindIsolatedService extends BindService {
+        /**
+         * Clears the instanceName argument and delegates to the parent BindService hook.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; args[6] (instanceName) is set to null
+         * @return the result from the parent BindService hook
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object beforeHook(Object who, Method method, Object[] args) throws Throwable {
             // instanceName
@@ -287,9 +413,23 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code unbindService} to route service unbinding through
+     * the virtual activity manager and replace the connection with the proxy delegate.
+     */
     @ProxyMethod("unbindService")
     public static class UnbindService extends MethodHook {
 
+        /**
+         * Unbinds the service via the virtual activity manager and replaces the
+         * IServiceConnection with its proxy delegate if one exists.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args args[0] is the IServiceConnection to unbind
+         * @return the result of the original method invocation
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             IServiceConnection iServiceConnection = (IServiceConnection) args[0];
@@ -305,9 +445,22 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getRunningAppProcesses} to return the virtual
+     * app's running process information from the virtual activity manager.
+     */
     @ProxyMethod("getRunningAppProcesses")
     public static class GetRunningAppProcesses extends MethodHook {
 
+        /**
+         * Returns the running process info list for the current virtual app.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments (unused)
+         * @return a list of RunningAppProcessInfo, or an empty list if none found
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             RunningAppProcessInfo runningAppProcesses = BActivityManager.get().getRunningAppProcesses(BActivityThread.getAppPackageName(), BActivityThread.getUserId());
@@ -318,9 +471,22 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getServices} to return the virtual app's
+     * running service information from the virtual activity manager.
+     */
     @ProxyMethod("getServices")
     public static class GetServices extends MethodHook {
 
+        /**
+         * Returns the running service info list for the current virtual app.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments (unused)
+         * @return a list of RunningServiceInfo, or an empty list if none found
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             RunningServiceInfo runningServices = BActivityManager.get().getRunningServices(BActivityThread.getAppPackageName(), BActivityThread.getUserId());
@@ -331,8 +497,25 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getIntentSender} to create virtual intent senders.
+     * Replaces activity-type intents with proxy pending activities and registers
+     * the intent sender with the virtual activity manager.
+     */
     @ProxyMethod("getIntentSender")
     public static class GetIntentSender extends MethodHook {
+        /**
+         * Creates a virtual intent sender by replacing intents with proxy pending
+         * activity components and registering with the virtual activity manager.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args args[0] is type, args[1] is callingPackage, args[2] is callingFeatureId (R+),
+         *             args[3/4] is IBinder token, args[4/5] is resultCode, args[5/6] is data Intent,
+         *             followed by Intent[] array
+         * @return the IIntentSender interface from the original method invocation
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int type = (int) args[0];
@@ -361,6 +544,12 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             return invoke;
         }
 
+        /**
+         * Finds the Intent[] array argument index in the method arguments.
+         *
+         * @param args the method arguments to search
+         * @return the index of the Intent[] array, or a default based on Android version
+         */
         private int getIntentsIndex(Object[] args) {
             for (int i = 0; i < args.length; i++) {
                 if (args[i] instanceof Intent[]) {
@@ -375,8 +564,21 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getPackageForIntentSender} to return the package
+     * name associated with an intent sender from the virtual activity manager.
+     */
     @ProxyMethod("getPackageForIntentSender")
     public static class getPackageForIntentSender extends MethodHook {
+        /**
+         * Returns the package name for the given intent sender binder.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args args[0] is the IIntentSender
+         * @return the package name associated with the intent sender
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             IInterface invoke = (IInterface) args[0];
@@ -384,8 +586,21 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getUidForIntentSender} to return the UID
+     * associated with an intent sender from the virtual activity manager.
+     */
     @ProxyMethod("getUidForIntentSender")
     public static class getUidForIntentSender extends MethodHook {
+        /**
+         * Returns the UID for the given intent sender binder.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args args[0] is the IIntentSender
+         * @return the UID associated with the intent sender
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             IInterface invoke = (IInterface) args[0];
@@ -393,20 +608,47 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getIntentSenderWithSourceToken} by extending
+     * {@link GetIntentSender}. Delegates to the parent implementation.
+     */
     @ProxyMethod("getIntentSenderWithSourceToken")
     public static class GetIntentSenderWithSourceToken extends GetIntentSender {
     }
 
+    /**
+     * Hook that intercepts {@code getIntentSenderWithFeature} by extending
+     * {@link GetIntentSender}. Delegates to the parent implementation.
+     */
     @ProxyMethod("getIntentSenderWithFeature")
     public static class GetIntentSenderWithFeature extends GetIntentSender {
     }
 
+    /**
+     * Hook that intercepts {@code broadcastIntentWithFeature} by extending
+     * {@link BroadcastIntent}. Delegates to the parent implementation.
+     */
     @ProxyMethod("broadcastIntentWithFeature")
     public static class BroadcastIntentWithFeature extends BroadcastIntent {
     }
 
+    /**
+     * Hook that intercepts {@code broadcastIntent} to route broadcast dispatching
+     * through the virtual activity manager. Replaces the intent with a proxy
+     * broadcast and strips permission checks to allow delivery within the sandbox.
+     */
     @ProxyMethod("broadcastIntent")
     public static class BroadcastIntent extends MethodHook {
+        /**
+         * Sends the broadcast through the virtual activity manager, replacing the
+         * intent with a proxy broadcast record for proper routing.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments containing the Intent and resolved type
+         * @return the result of the original method invocation
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int intentIndex = getIntentIndex(args);
@@ -428,6 +670,12 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             return method.invoke(who, args);
         }
 
+        /**
+         * Finds the Intent argument index in the method arguments.
+         *
+         * @param args the method arguments to search
+         * @return the index of the Intent argument, defaulting to 1
+         */
         int getIntentIndex(Object[] args) {
             for (int i = 0; i < args.length; i++) {
                 Object arg = args[i];
@@ -439,36 +687,88 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code unregisterReceiver}. Passes through to the
+     * original method without modification.
+     */
     @ProxyMethod("unregisterReceiver")
     public static class unregisterReceiver extends MethodHook {
 
+        /**
+         * Delegates directly to the original unregisterReceiver method.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments
+         * @return the result of the original method invocation
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return method.invoke(who, args);
         }
     }
 
+    /**
+     * Hook that intercepts {@code finishReceiver}. Passes through to the
+     * original method without modification.
+     */
     @ProxyMethod("finishReceiver")
     public static class finishReceiver extends MethodHook {
 
+        /**
+         * Delegates directly to the original finishReceiver method.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments
+         * @return the result of the original method invocation
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return method.invoke(who, args);
         }
     }
 
+    /**
+     * Hook that intercepts {@code publishService}. Passes through to the
+     * original method without modification.
+     */
     @ProxyMethod("publishService")
     public static class PublishService extends MethodHook {
 
+        /**
+         * Delegates directly to the original publishService method.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments
+         * @return the result of the original method invocation
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return method.invoke(who, args);
         }
     }
 
+    /**
+     * Hook that intercepts {@code peekService} to peek at a bound service's
+     * binder through the virtual activity manager.
+     */
     @ProxyMethod("peekService")
     public static class PeekService extends MethodHook {
 
+        /**
+         * Peeks at the service binder by resolving the intent within the virtual environment.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args args[0] is the Intent, args[1] is resolvedType, args[2] is callingPackage
+         * @return the IBinder of the peeked service, or null
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             MethodParameterUtils.replaceLastAppPkg(args);
@@ -479,24 +779,56 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code sendIntentSender}. Currently returns 0 as a
+     * placeholder to prevent intent sender execution in the virtual environment.
+     */
     // todo
     @ProxyMethod("sendIntentSender")
     public static class SendIntentSender extends MethodHook {
 
+        /**
+         * Silently drops the intent sender request.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments (unused)
+         * @return always returns 0
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return 0;
         }
     }
 
+    /**
+     * Hook that intercepts {@code registerReceiverWithFeature} (Android 10+) by
+     * extending {@link RegisterReceiver}. Delegates to the parent implementation.
+     */
     // android 10
     @ProxyMethod("registerReceiverWithFeature")
     public static class RegisterReceiverWithFeature extends RegisterReceiver {
     }
 
+    /**
+     * Hook that intercepts {@code registerReceiver} to wrap the broadcast receiver
+     * with a proxy delegate and strip permission requirements for delivery within
+     * the virtual sandbox.
+     */
     @ProxyMethod("registerReceiver")
     public static class RegisterReceiver extends MethodHook {
 
+        /**
+         * Registers a broadcast receiver by replacing it with a proxy delegate and
+         * removing permission restrictions.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments containing IIntentReceiver, IntentFilter, etc.
+         * @return the result of the original method invocation
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             MethodParameterUtils.replaceFirstAppPkg(args);
@@ -519,6 +851,11 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             return method.invoke(who, args);
         }
 
+        /**
+         * Returns the argument index for the IIntentReceiver based on Android version.
+         *
+         * @return the index of the receiver argument
+         */
         public int getReceiverIndex() {
             if (BuildCompat.isS()) {
                 return 4;
@@ -528,6 +865,11 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             return 2;
         }
 
+        /**
+         * Returns the argument index for the permission string based on Android version.
+         *
+         * @return the index of the permission argument
+         */
         public int getPermissionIndex() {
             if (BuildCompat.isS()) {
                 return 6;
@@ -538,8 +880,21 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code grantUriPermission} to replace the target UID
+     * with the virtual environment's UID before delegation.
+     */
     @ProxyMethod("grantUriPermission")
     public static class GrantUriPermission extends MethodHook {
+        /**
+         * Replaces the last UID argument with the virtual UID and delegates.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; the last UID is replaced
+         * @return the result of the original method invocation
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             MethodParameterUtils.replaceLastUid(args);
@@ -547,8 +902,21 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code setServiceForeground}. Silently returns 0 to
+     * prevent virtual apps from setting foreground service status directly.
+     */
     @ProxyMethod("setServiceForeground")
     public static class setServiceForeground extends MethodHook {
+        /**
+         * Silently drops the setServiceForeground request.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments (unused)
+         * @return always returns 0
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
 //            if (args[0] instanceof ComponentName) {
@@ -559,16 +927,42 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getHistoricalProcessExitReasons} to return
+     * an empty list, preventing virtual apps from querying real process exit reasons.
+     */
     @ProxyMethod("getHistoricalProcessExitReasons")
     public static class getHistoricalProcessExitReasons extends MethodHook {
+        /**
+         * Returns an empty ParceledListSlice to hide real process exit reasons.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments (unused)
+         * @return an empty ParceledListSlice
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return ParceledListSliceCompat.create(new ArrayList<>());
         }
     }
 
+    /**
+     * Hook that intercepts {@code getCurrentUser} to return a virtual UserInfo
+     * object with the virtual environment's user ID.
+     */
     @ProxyMethod("getCurrentUser")
     public static class getCurrentUser extends MethodHook {
+        /**
+         * Returns a UserInfo object representing the virtual user.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments (unused)
+         * @return a UserInfo with the virtual user ID and "BlackBox" name
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             Object blackBox = BRUserInfo.get()._new(BActivityThread.getUserId(), "BlackBox", BRUserInfo.get().FLAG_PRIMARY());
@@ -576,8 +970,23 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code checkPermission} to replace the target UID
+     * and grant ACCOUNT_MANAGER and SEND_SMS permissions automatically.
+     */
     @ProxyMethod("checkPermission")
     public static class checkPermission extends MethodHook {
+        /**
+         * Checks permission after replacing the UID. Grants ACCOUNT_MANAGER and
+         * SEND_SMS permissions unconditionally; delegates others to the original method.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args args[0] is the permission string, args[1] is the PID, args[2] is the UID
+         * @return {@link PackageManager#PERMISSION_GRANTED} for auto-granted permissions,
+         *         otherwise the result from the original method
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             MethodParameterUtils.replaceLastUid(args);
@@ -590,17 +999,43 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code checkUriPermission} to always grant URI
+     * permissions within the virtual environment.
+     */
     @ProxyMethod("checkUriPermission")
     public static class checkUriPermission extends MethodHook {
+        /**
+         * Always returns PERMISSION_GRANTED for URI permission checks.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments (unused)
+         * @return always returns {@link PackageManager#PERMISSION_GRANTED}
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return PERMISSION_GRANTED;
         }
     }
 
+    /**
+     * Hook that intercepts {@code setTaskDescription} on Android versions below 10
+     * to fix task description display in the recent apps list.
+     */
     // for < Android 10
     @ProxyMethod("setTaskDescription")
     public static class SetTaskDescription extends MethodHook {
+        /**
+         * Fixes the TaskDescription to show correct app info in the recent apps list.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args args[0] is the IBinder token, args[1] is the ActivityManager.TaskDescription
+         * @return the result of the original method invocation with the fixed TaskDescription
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             ActivityManager.TaskDescription td = (ActivityManager.TaskDescription) args[1];
@@ -609,9 +1044,22 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code setRequestedOrientation} to catch and suppress
+     * exceptions that may occur when setting orientation in the virtual environment.
+     */
     @ProxyMethod("setRequestedOrientation")
     public static class setRequestedOrientation extends MethodHook {
 
+        /**
+         * Attempts to set the requested orientation, catching and logging any exceptions.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args args[0] is the IBinder token, args[1] is the orientation integer
+         * @return the result of the original method, or 0 on failure
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             try {
@@ -623,27 +1071,66 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code registerUidObserver} to silently ignore
+     * UID observer registration in the virtual environment.
+     */
     @ProxyMethod("registerUidObserver")
     public static class registerUidObserver extends MethodHook {
 
+        /**
+         * Silently drops the registerUidObserver request.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments (unused)
+         * @return always returns 0
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return 0;
         }
     }
 
+    /**
+     * Hook that intercepts {@code unregisterUidObserver} to silently ignore
+     * UID observer unregistration in the virtual environment.
+     */
     @ProxyMethod("unregisterUidObserver")
     public static class unregisterUidObserver extends MethodHook {
 
+        /**
+         * Silently drops the unregisterUidObserver request.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments (unused)
+         * @return always returns 0
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return 0;
         }
     }
 
+    /**
+     * Hook that intercepts {@code updateConfiguration} to silently ignore
+     * configuration update requests from virtual apps.
+     */
     @ProxyMethod("updateConfiguration")
     public static class updateConfiguration extends MethodHook {
 
+        /**
+         * Silently drops the updateConfiguration request.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments (unused)
+         * @return always returns 0
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return 0;

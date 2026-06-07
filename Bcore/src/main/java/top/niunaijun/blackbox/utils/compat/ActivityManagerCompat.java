@@ -11,6 +11,15 @@ import black.android.app.BRIActivityManager;
 import black.android.app.BRIActivityManagerL;
 import black.android.app.BRIActivityManagerN;
 
+/**
+ * Compatibility wrapper for {@link android.app.IActivityManager} internal APIs.
+ * <p>
+ * Handles differences in IActivityManager method signatures across Android versions,
+ * particularly between Lollipop, Marshmallow, and Nougat. Provides constants for
+ * service execution types, intent sender types, user operation results, and start flags,
+ * as well as methods for finishing activities and setting orientation that account for
+ * manufacturer-specific (e.g. Samsung) deviations in the Activity hierarchy.
+ */
 public class ActivityManagerCompat {
 	/** Type for IActivityManager.serviceDoneExecuting: anonymous operation */
 	public static final int SERVICE_DONE_EXECUTING_ANON = 0;
@@ -70,10 +79,24 @@ public class ActivityManagerCompat {
 	/** User operation call: success! */
 	public static final int USER_OP_SUCCESS = 0;
 
+	/** Start flag indicating the activity is being started in debug mode. */
 	public static final int START_FLAG_DEBUG = 1<<1;
+	/** Start flag indicating memory allocations should be tracked for this start. */
 	public static final int START_FLAG_TRACK_ALLOCATION = 1<<2;
+	/** Start flag indicating native code debugging should be enabled for this start. */
 	public static final int START_FLAG_NATIVE_DEBUGGING = 1<<3;
 
+	/**
+	 * Finishes the activity associated with the given token through IActivityManager.
+	 * <p>
+	 * Uses the Nougat (API 24+) four-parameter variant or the Lollipop (API 21+) variant
+	 * as appropriate for the current Android version.
+	 *
+	 * @param token the IBinder token of the activity to finish
+	 * @param code  the result code to return to the activity
+	 * @param data  the result data Intent to return to the activity
+	 * @return true if the activity was successfully finished, false otherwise
+	 */
 	public static boolean finishActivity(IBinder token, int code, Intent data) {
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
 			return BRIActivityManagerN.get(BRActivityManagerNative.get().getDefault()).finishActivity(
@@ -86,6 +109,17 @@ public class ActivityManagerCompat {
 	}
 
 
+	/**
+	 * Sets the requested screen orientation for the given activity.
+	 * <p>
+	 * Falls back to using IActivityManager.setRequestedOrientation directly via the
+	 * activity's token when the standard method fails, which can happen on certain
+	 * manufacturer ROMs (e.g. Samsung) that wrap the Activity in a non-standard parent.
+	 *
+	 * @param activity    the activity whose orientation should be changed
+	 * @param orientation the desired screen orientation constant from
+	 *                    {@link android.content.pm.ActivityInfo#screenOrientation}
+	 */
     public static void setActivityOrientation(Activity activity, int orientation) {
         try {
             activity.setRequestedOrientation(orientation);

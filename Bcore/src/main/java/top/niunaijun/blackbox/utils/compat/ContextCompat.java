@@ -13,16 +13,26 @@ import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.app.BActivityThread;
 
 /**
- * Created by Milk on 3/31/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Compatibility utility for fixing {@link android.content.Context} internals within the virtual environment.
+ * <p>
+ * Patches the base context's package name, content resolver package name, and (on Android 12+)
+ * the {@code AttributionSourceState} to match the host application, ensuring that system
+ * services attribute calls to the correct package. Handles deep {@link ContextWrapper} chains
+ * up to 10 levels to reach the underlying {@code ContextImpl}.
  */
 public class ContextCompat {
     public static final String TAG = "ContextCompat";
 
+    /**
+     * Fixes the {@code AttributionSourceState} chain on an {@code AttributionSource} object.
+     * <p>
+     * Sets the package name to the host package and the UID to the specified virtual UID
+     * on each node in the linked AttributionSource chain. Used on Android 12 (S) and above
+     * where the attribution source is checked by the system.
+     *
+     * @param obj the root AttributionSource object to fix (may be null)
+     * @param uid the virtual user ID to set in the attribution source
+     */
     public static void fixAttributionSourceState(Object obj, int uid) {
         Object mAttributionSourceState;
         if (obj != null && BRAttributionSource.get(obj)._check_mAttributionSourceState() != null) {
@@ -35,6 +45,16 @@ public class ContextCompat {
         }
     }
 
+    /**
+     * Fixes the given context for the virtual environment by patching its internal fields.
+     * <p>
+     * Unwraps any {@link ContextWrapper} layers, resets the PackageManager to force
+     * re-initialization, sets the base package name and operation package name to the
+     * host package, and patches the content resolver. On Android 12+, also fixes the
+     * {@code AttributionSourceState}.
+     *
+     * @param context the context instance to fix
+     */
     public static void fix(Context context) {
         try {
             int deep = 0;

@@ -21,27 +21,54 @@ import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
 
-/*
- * created by BlackBoxing at 2022/03/05
- * */
+/**
+ * Parcelable representation of a geographic location used for virtual location
+ * spoofing within the BlackBox environment.
+ * <p>
+ * Wraps latitude, longitude, altitude, speed, bearing, and accuracy values,
+ * and can convert itself to a standard Android {@link Location} object via
+ * {@link #convert2SystemLocation()} so that apps querying the GPS provider
+ * receive the spoofed coordinates.
+ * </p>
+ *
+ * @see BCell
+ * @see BLocationConfig
+ */
 public class BLocation implements Parcelable {
 
+    /** The latitude in degrees, ranging from -90.0 to 90.0. */
     private double mLatitude = 0.0;
+
+    /** The longitude in degrees, ranging from -180.0 to 180.0. */
     private double mLongitude = 0.0;
+
+    /** The altitude above the WGS84 reference ellipsoid in meters. */
     private double mAltitude = 0.0f;
+
+    /** The ground speed in meters per second. */
     private float mSpeed = 0.0f;
+
+    /** The bearing (direction of travel) in degrees, ranging from 0.0 to 360.0. */
     private float mBearing = 0.0f;
+
+    /** The estimated horizontal accuracy radius in meters. */
     private float mAccuracy = 0.0f;
 //    private float mHorizontalAccuracyMeters = 0.0f;
 //    private float mVerticalAccuracyMeters = 0.0f;
 //    private float mSpeedAccuracyMetersPerSecond = 0.0f;
 //    private float mBearingAccuracyDegrees = 0.0f;
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public int describeContents() {
         return 0;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeDouble(this.mLatitude);
@@ -52,22 +79,46 @@ public class BLocation implements Parcelable {
         dest.writeFloat(this.mAccuracy);
     }
 
+    /**
+     * Returns the latitude of this location.
+     *
+     * @return the latitude in degrees
+     */
     public double getLatitude() {
         return mLatitude;
     }
 
+    /**
+     * Returns the longitude of this location.
+     *
+     * @return the longitude in degrees
+     */
     public double getLongitude() {
         return mLongitude;
     }
 
+    /**
+     * Default constructor for creating an empty {@link BLocation} at coordinates (0, 0).
+     */
     public BLocation() {
     }
 
+    /**
+     * Constructs a {@link BLocation} with the specified latitude and longitude.
+     *
+     * @param latitude   the latitude in degrees
+     * @param mLongitude the longitude in degrees
+     */
     public BLocation(double latitude, double mLongitude) {
         this.mLatitude = latitude;
         this.mLongitude = mLongitude;
     }
 
+    /**
+     * Constructs a {@link BLocation} by reading its fields from the given {@link Parcel}.
+     *
+     * @param in the Parcel to read from
+     */
     public BLocation(Parcel in) {
         this.mLatitude = in.readDouble();
         this.mLongitude = in.readDouble();
@@ -77,6 +128,11 @@ public class BLocation implements Parcelable {
         this.mBearing = in.readFloat();
     }
 
+    /**
+     * Checks whether this location has default (zero) coordinates.
+     *
+     * @return {@code true} if both latitude and longitude are zero
+     */
     public boolean isEmpty() {
         return mLatitude == 0 && mLongitude == 0;
     }
@@ -93,6 +149,11 @@ public class BLocation implements Parcelable {
         }
     };
 
+    /**
+     * Returns a string representation of this location for debugging.
+     *
+     * @return a debug string containing latitude, longitude, altitude, speed, bearing, and accuracy
+     */
     @Override
     public String toString() {
         return "BLocation{" +
@@ -105,6 +166,13 @@ public class BLocation implements Parcelable {
                 '}';
     }
 
+    /**
+     * Converts this virtual location to a standard Android {@link Location} object
+     * using the GPS provider. The returned location includes simulated satellite
+     * count extras to appear realistic to applications.
+     *
+     * @return a new {@link Location} populated with this instance's coordinates and metadata
+     */
     public Location convert2SystemLocation() {
         Location location = new Location(LocationManager.GPS_PROVIDER);
         location.setLatitude(mLatitude);

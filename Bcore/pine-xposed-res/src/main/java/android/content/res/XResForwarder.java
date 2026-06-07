@@ -5,6 +5,11 @@ package android.content.res;
  * and its variants. They forward the resource request to a different {@link Resources}
  * instance with a possibly different ID.
  *
+ * <p>This enables resource forwarding from one package's resources to another, which is the
+ * mechanism behind resource replacement in Xposed. When a resource is requested and an
+ * {@code XResForwarder} replacement is set, the framework looks up the resource in the target
+ * {@link Resources} object using the target ID instead.
+ *
  * <p>Usually, instances aren't created directly but via {@link XModuleResources#fwd}.
  */
 public class XResForwarder {

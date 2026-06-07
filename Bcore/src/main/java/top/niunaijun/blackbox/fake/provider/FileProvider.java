@@ -31,12 +31,10 @@ import static org.xmlpull.v1.XmlPullParser.END_DOCUMENT;
 import static org.xmlpull.v1.XmlPullParser.START_TAG;
 
 /**
- * Created by Milk on 4/18/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Custom FileProvider implementation for the virtual environment that maps between
+ * content URIs and filesystem paths. Supports the same path strategies as AndroidX
+ * FileProvider (root-path, files-path, cache-path, external-path, etc.) and ensures
+ * secure URI-based file access within the BlackBox sandbox.
  */
 public class FileProvider extends ContentProvider {
     private static final String[] COLUMNS = {
@@ -119,6 +117,14 @@ public class FileProvider extends ContentProvider {
         return strategy.getUriForFile(file);
     }
 
+    /**
+     * Returns a {@link File} for the given content URI using the specified authority.
+     *
+     * @param context   the current context
+     * @param authority the FileProvider authority
+     * @param uri       the content URI to resolve
+     * @return the File corresponding to the URI
+     */
     public static File getFileForUri(Context context, String authority,
                                     Uri uri) {
         final PathStrategy strategy = getPathStrategy(context, authority);

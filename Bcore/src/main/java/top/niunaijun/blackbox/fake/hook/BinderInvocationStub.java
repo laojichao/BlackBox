@@ -14,16 +14,19 @@ import java.util.Map;
 import black.android.os.BRServiceManager;
 
 /**
- * Created by Milk on 3/30/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Abstract stub that intercepts binder-level invocations by replacing a system service's
+ * IBinder in the ServiceManager cache. Extends {@link ClassInvocationStub} and implements
+ * {@link IBinder} to act as a transparent proxy for the original binder, forwarding
+ * most binder operations while allowing method-level hooks via the parent class.
  */
 public abstract class BinderInvocationStub extends ClassInvocationStub implements IBinder {
     private IBinder mBaseBinder;
 
+    /**
+     * Constructs a new BinderInvocationStub wrapping the given base binder.
+     *
+     * @param baseBinder the original IBinder to wrap
+     */
     public BinderInvocationStub(IBinder baseBinder) {
         mBaseBinder = baseBinder;
     }
@@ -48,6 +51,13 @@ public abstract class BinderInvocationStub extends ClassInvocationStub implement
         return mBaseBinder.isBinderAlive();
     }
 
+    /**
+     * Returns the proxy invocation as the local interface, ensuring all calls
+     * go through the hook chain.
+     *
+     * @param descriptor the interface descriptor
+     * @return the proxy IInterface
+     */
     @Nullable
     @Override
     public IInterface queryLocalInterface(@NonNull String descriptor) {
@@ -80,6 +90,11 @@ public abstract class BinderInvocationStub extends ClassInvocationStub implement
     }
 
 
+    /**
+     * Replaces the named system service in the ServiceManager's cache with this stub.
+     *
+     * @param name the service name to replace (e.g., "activity", "package")
+     */
     protected void replaceSystemService(String name) {
         Map<String, IBinder> services = BRServiceManager.get().sCache();
         services.put(name, this);

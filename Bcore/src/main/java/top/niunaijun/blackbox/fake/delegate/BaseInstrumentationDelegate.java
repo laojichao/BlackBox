@@ -25,6 +25,12 @@ import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.app.configuration.AppLifecycleCallback;
 import top.niunaijun.blackbox.utils.Reflector;
 
+/**
+ * Base delegation wrapper for Android's {@link Instrumentation} class. All method calls
+ * are forwarded to the wrapped base instrumentation instance. Also dispatches activity
+ * lifecycle callbacks to registered {@link AppLifecycleCallback} listeners and provides
+ * reflective execStartActivity invocation for cross-API-level compatibility.
+ */
 public class BaseInstrumentationDelegate extends Instrumentation {
 
     protected Instrumentation mBaseInstrumentation;
@@ -364,6 +370,19 @@ public class BaseInstrumentationDelegate extends Instrumentation {
         return mBaseInstrumentation.getUiAutomation();
     }
 
+    /**
+     * Starts an activity using the hidden execStartActivity method on the base instrumentation.
+     *
+     * @param context  the Context from which the activity is being started
+     * @param binder   the IBinder token for the calling activity
+     * @param binder1  the IBinder token for the target activity
+     * @param activity the Activity starting the new activity
+     * @param intent   the Intent describing the activity to start
+     * @param i        the request code
+     * @param bundle   additional options, or null
+     * @return the ActivityResult from the started activity
+     * @throws Throwable if reflection or invocation fails
+     */
     public ActivityResult execStartActivity(Context context, IBinder binder, IBinder binder1, Activity activity, Intent intent, int i, Bundle bundle) throws Throwable {
         return invokeExecStartActivity(mBaseInstrumentation,
                 Context.class,
@@ -375,6 +394,19 @@ public class BaseInstrumentationDelegate extends Instrumentation {
                 Bundle.class).callByCaller(mBaseInstrumentation, new Object[]{context, binder, binder1, activity, intent, i, bundle});
     }
 
+    /**
+     * Starts an activity using the hidden execStartActivity method with a caller String.
+     *
+     * @param context  the Context from which the activity is being started
+     * @param binder   the IBinder token for the calling activity
+     * @param binder1  the IBinder token for the target activity
+     * @param str      the caller package name
+     * @param intent   the Intent describing the activity to start
+     * @param i        the request code
+     * @param bundle   additional options, or null
+     * @return the ActivityResult from the started activity
+     * @throws Throwable if reflection or invocation fails
+     */
     public ActivityResult execStartActivity(Context context, IBinder binder, IBinder binder1, String str, Intent intent, int i, Bundle bundle) throws Throwable {
         return invokeExecStartActivity(mBaseInstrumentation,
                 Context.class,
@@ -386,6 +418,18 @@ public class BaseInstrumentationDelegate extends Instrumentation {
                 Bundle.class).callByCaller(mBaseInstrumentation, new Object[]{context, binder, binder1, str, intent, i, bundle});
     }
 
+    /**
+     * Starts an activity from a Fragment using the hidden execStartActivity method.
+     *
+     * @param context  the Context from which the activity is being started
+     * @param binder   the IBinder token for the calling activity
+     * @param binder1  the IBinder token for the target activity
+     * @param fragment the Fragment starting the activity
+     * @param intent   the Intent describing the activity to start
+     * @param i        the request code
+     * @return the ActivityResult from the started activity
+     * @throws Throwable if reflection or invocation fails
+     */
     public ActivityResult execStartActivity(Context context, IBinder binder, IBinder binder1, Fragment fragment, Intent intent, int i) throws Throwable {
         return invokeExecStartActivity(mBaseInstrumentation,
                 Context.class,
@@ -396,6 +440,18 @@ public class BaseInstrumentationDelegate extends Instrumentation {
                 Integer.TYPE).callByCaller(mBaseInstrumentation, new Object[]{context, binder, binder1, fragment, intent, i});
     }
 
+    /**
+     * Starts an activity with no options using the hidden execStartActivity method.
+     *
+     * @param context  the Context from which the activity is being started
+     * @param binder   the IBinder token for the calling activity
+     * @param binder1  the IBinder token for the target activity
+     * @param activity the Activity starting the new activity
+     * @param intent   the Intent describing the activity to start
+     * @param i        the request code
+     * @return the ActivityResult from the started activity
+     * @throws Throwable if reflection or invocation fails
+     */
     public ActivityResult execStartActivity(Context context, IBinder binder, IBinder binder1, Activity activity, Intent intent, int i) throws Throwable {
         return invokeExecStartActivity(mBaseInstrumentation,
                 Context.class,
@@ -406,6 +462,20 @@ public class BaseInstrumentationDelegate extends Instrumentation {
                 Integer.TYPE).callByCaller(mBaseInstrumentation, new Object[]{context, binder, binder1, activity, intent, i});
     }
 
+    /**
+     * Starts an activity from a Fragment with additional options using the hidden
+     * execStartActivity method.
+     *
+     * @param context  the Context from which the activity is being started
+     * @param binder   the IBinder token for the calling activity
+     * @param binder1  the IBinder token for the target activity
+     * @param fragment the Fragment starting the activity
+     * @param intent   the Intent describing the activity to start
+     * @param i        the request code
+     * @param bundle   additional options, or null
+     * @return the ActivityResult from the started activity
+     * @throws Throwable if reflection or invocation fails
+     */
     public ActivityResult execStartActivity(Context context, IBinder binder, IBinder binder1, Fragment fragment, Intent intent, int i, Bundle bundle) throws Throwable {
         return invokeExecStartActivity(mBaseInstrumentation,
                 Context.class,
@@ -417,6 +487,20 @@ public class BaseInstrumentationDelegate extends Instrumentation {
                 Bundle.class).callByCaller(mBaseInstrumentation, new Object[]{context, binder, binder1, fragment, intent, i, bundle});
     }
 
+    /**
+     * Starts an activity for a specific UserHandle using the hidden execStartActivity method.
+     *
+     * @param context     the Context from which the activity is being started
+     * @param iBinder     the IBinder token for the calling activity
+     * @param iBinder2    the IBinder token for the target activity
+     * @param activity    the Activity starting the new activity
+     * @param intent      the Intent describing the activity to start
+     * @param i           the request code
+     * @param bundle      additional options, or null
+     * @param userHandle  the UserHandle to start the activity for
+     * @return the ActivityResult from the started activity
+     * @throws Throwable if reflection or invocation fails
+     */
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
     public ActivityResult execStartActivity(Context context, IBinder iBinder, IBinder iBinder2, Activity activity, Intent intent, int i, Bundle bundle, UserHandle userHandle) throws Throwable {
         return invokeExecStartActivity(mBaseInstrumentation,

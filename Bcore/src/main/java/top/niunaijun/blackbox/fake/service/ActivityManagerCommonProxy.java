@@ -24,16 +24,23 @@ import top.niunaijun.blackbox.utils.compat.StartActivityCompat;
 import static android.content.pm.PackageManager.GET_META_DATA;
 
 /**
- * Created by Milk on 4/21/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Proxy for common Activity Manager operations in the virtual environment.
+ * Intercepts activity lifecycle methods (start, resume, destroy, finish) and
+ * redirects them through the virtual environment's activity management system.
+ * Contains static inner hook classes for individual activity manager methods.
+ *
+ * @author Milk
  */
 public class ActivityManagerCommonProxy {
+    /** Tag for logging. */
     public static final String TAG = "CommonStub";
 
+    /**
+     * Hooks the {@code startActivity} method to intercept activity launches.
+     * Replaces package names, handles install requests, resolves activities
+     * within the virtual environment, and routes launches through the virtual
+     * activity manager.
+     */
     @ProxyMethod("startActivity")
     public static class StartActivity extends MethodHook {
         @Override
@@ -95,6 +102,12 @@ public class ActivityManagerCommonProxy {
             return 0;
         }
 
+        /**
+         * Extracts the Intent from the method arguments based on Android version.
+         *
+         * @param args the method arguments from the hooked call
+         * @return the Intent found in the arguments, or null if not found
+         */
         private Intent getIntent(Object[] args) {
             int index;
             if (BuildCompat.isR()) {
@@ -114,6 +127,11 @@ public class ActivityManagerCommonProxy {
         }
     }
 
+    /**
+     * Hooks the {@code startActivities} method to batch-start multiple activities.
+     * Routes activity launches through the virtual activity manager when the
+     * intents target the virtual environment.
+     */
     @ProxyMethod("startActivities")
     public static class StartActivities extends MethodHook {
         @Override
@@ -135,6 +153,11 @@ public class ActivityManagerCommonProxy {
                     intents, resolvedTypes, resultTo, options);
         }
 
+        /**
+         * Returns the argument index for the intents array based on Android version.
+         *
+         * @return the index of the intents array in the method arguments
+         */
         public int getIntents() {
             if (BuildCompat.isR()) {
                 return 3;
@@ -143,6 +166,10 @@ public class ActivityManagerCommonProxy {
         }
     }
 
+    /**
+     * Hooks the {@code startIntentSenderForResult} method.
+     * Currently a pass-through that delegates to the original method.
+     */
     @ProxyMethod("startIntentSenderForResult")
     public static class StartIntentSenderForResult extends MethodHook {
         @Override
@@ -151,6 +178,10 @@ public class ActivityManagerCommonProxy {
         }
     }
 
+    /**
+     * Hooks the {@code activityResumed} method to notify the virtual activity manager
+     * when an activity is resumed.
+     */
     @ProxyMethod("activityResumed")
     public static class ActivityResumed extends MethodHook {
         @Override
@@ -160,6 +191,10 @@ public class ActivityManagerCommonProxy {
         }
     }
 
+    /**
+     * Hooks the {@code activityDestroyed} method to notify the virtual activity manager
+     * when an activity is destroyed.
+     */
     @ProxyMethod("activityDestroyed")
     public static class ActivityDestroyed extends MethodHook {
         @Override
@@ -169,6 +204,10 @@ public class ActivityManagerCommonProxy {
         }
     }
 
+    /**
+     * Hooks the {@code finishActivity} method to notify the virtual activity manager
+     * when an activity is finished.
+     */
     @ProxyMethod("finishActivity")
     public static class FinishActivity extends MethodHook {
         @Override
@@ -178,6 +217,10 @@ public class ActivityManagerCommonProxy {
         }
     }
 
+    /**
+     * Hooks the {@code getAppTasks} method to replace the application package name
+     * with the host package name for proper task retrieval in the virtual environment.
+     */
     @ProxyMethod("getAppTasks")
     public static class GetAppTasks extends MethodHook {
         @Override
@@ -187,6 +230,10 @@ public class ActivityManagerCommonProxy {
         }
     }
 
+    /**
+     * Hooks the {@code getCallingPackage} method to return the virtual calling package
+     * from the virtual activity manager.
+     */
     @ProxyMethod("getCallingPackage")
     public static class getCallingPackage extends MethodHook {
         @Override
@@ -195,6 +242,10 @@ public class ActivityManagerCommonProxy {
         }
     }
 
+    /**
+     * Hooks the {@code getCallingActivity} method to return the virtual calling activity
+     * from the virtual activity manager.
+     */
     @ProxyMethod("getCallingActivity")
     public static class getCallingActivity extends MethodHook {
         @Override

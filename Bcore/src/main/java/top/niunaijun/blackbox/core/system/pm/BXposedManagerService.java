@@ -23,12 +23,20 @@ import top.niunaijun.blackbox.utils.FileUtils;
 import top.niunaijun.blackbox.utils.compat.XposedParserCompat;
 
 /**
- * Created by Milk on 5/2/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * System service managing Xposed module installation, activation, and state
+ * within the virtual environment.
+ *
+ * <p>Tracks which Xposed modules are installed in the dedicated
+ * {@link BUserHandle#USER_XPOSED} user, maintains per-module enable/disable
+ * state in a persisted {@link XposedConfig}, and listens for package events
+ * via {@link PackageMonitor} to keep the module cache in sync.</p>
+ *
+ * <p>Module state is persisted atomically to {@link BEnvironment#getXPModuleConf()}
+ * using a {@link Parcel}-based format through {@link AtomicFile}.</p>
+ *
+ * @see BPackageManagerService
+ * @see XposedConfig
+ * @see InstalledModule
  */
 public class BXposedManagerService extends IBXposedManagerService.Stub implements ISystemService, PackageMonitor {
     private static final BXposedManagerService sService = new BXposedManagerService();
@@ -38,13 +46,25 @@ public class BXposedManagerService extends IBXposedManagerService.Stub implement
     private BPackageManagerService mPms;
     private final Map<String, InstalledModule> mCacheModule = new HashMap<>();
 
+    /**
+     * Returns the singleton instance of this service.
+     *
+     * @return the global BXposedManagerService instance
+     */
     public static BXposedManagerService get() {
         return sService;
     }
 
+    /**
+     * Constructs the Xposed manager service. Module state is loaded during {@link #systemReady()}.
+     */
     public BXposedManagerService() {
     }
 
+    /**
+     * Called when the system is fully initialized. Loads persisted module state
+     * from disk and registers this service as a package event monitor.
+     */
     @Override
     public void systemReady() {
         loadModuleStateLr();
@@ -52,6 +72,11 @@ public class BXposedManagerService extends IBXposedManagerService.Stub implement
         mPms.addPackageMonitor(this);
     }
 
+    /**
+     * Returns whether the Xposed framework is globally enabled.
+     *
+     * @return true if Xposed is enabled, false otherwise
+     */
     @Override
     public boolean isXPEnable() {
         synchronized (mLock) {
@@ -59,6 +84,11 @@ public class BXposedManagerService extends IBXposedManagerService.Stub implement
         }
     }
 
+    /**
+     * Enables or disables the Xposed framework globally. Persists the change to disk.
+     *
+     * @param enable true to enable, false to disable
+     */
     @Override
     public void setXPEnable(boolean enable) {
         synchronized (mLock) {
@@ -67,6 +97,12 @@ public class BXposedManagerService extends IBXposedManagerService.Stub implement
         }
     }
 
+    /**
+     * Returns whether a specific Xposed module is enabled.
+     *
+     * @param packageName the package name of the Xposed module
+     * @return true if the module is installed and enabled, false otherwise
+     */
     @Override
     public boolean isModuleEnable(String packageName) {
         synchronized (mLock) {
@@ -75,6 +111,13 @@ public class BXposedManagerService extends IBXposedManagerService.Stub implement
         }
     }
 
+    /**
+     * Enables or disables a specific Xposed module. The module must be installed
+     * in the Xposed user ({@link BUserHandle#USER_XPOSED}). Persists the change to disk.
+     *
+     * @param packageName the package name of the Xposed module
+     * @param enable      true to enable, false to disable
+     */
     @Override
     public void setModuleEnable(String packageName, boolean enable) {
         synchronized (mLock) {
@@ -86,6 +129,12 @@ public class BXposedManagerService extends IBXposedManagerService.Stub implement
         }
     }
 
+    /**
+     * Returns all installed Xposed modules with their current enable state.
+     * Newly discovered modules are parsed from application metadata and cached.
+     *
+     * @return a list of InstalledModule entries representing all known Xposed modules
+     */
     @Override
     public List<InstalledModule> getInstalledModules() {
         List<ApplicationInfo> installedApplications = mPms.getInstalledApplications(PackageManager.GET_META_DATA, BUserHandle.USER_XPOSED);
@@ -144,6 +193,14 @@ public class BXposedManagerService extends IBXposedManagerService.Stub implement
         }
     }
 
+    /**
+     * Called when a package is uninstalled. Clears the module cache and removes
+     * the module's enable state if the event is for the Xposed user or all users.
+     *
+     * @param packageName the name of the uninstalled package
+     * @param removeApp   true if the application files were also removed
+     * @param userId      the virtual user ID the uninstall occurred for
+     */
     @Override
     public void onPackageUninstalled(String packageName, boolean removeApp, int userId) {
         if (userId != BUserHandle.USER_XPOSED && userId != BUserHandle.USER_ALL) {
@@ -158,6 +215,13 @@ public class BXposedManagerService extends IBXposedManagerService.Stub implement
         }
     }
 
+    /**
+     * Called when a package is installed. Invalidates the module cache entry and
+     * registers the new module as disabled by default if the event is for the Xposed user.
+     *
+     * @param packageName the name of the installed package
+     * @param userId      the virtual user ID the install occurred for
+     */
     @Override
     public void onPackageInstalled(String packageName, int userId) {
         if (userId != BUserHandle.USER_XPOSED && userId != BUserHandle.USER_ALL) {

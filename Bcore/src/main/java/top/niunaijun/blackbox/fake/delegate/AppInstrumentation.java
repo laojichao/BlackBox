@@ -25,12 +25,24 @@ import top.niunaijun.blackbox.utils.compat.ActivityCompat;
 import top.niunaijun.blackbox.utils.compat.ActivityManagerCompat;
 import top.niunaijun.blackbox.utils.compat.ContextCompat;
 
+/**
+ * Singleton instrumentation delegate that intercepts the app's instrumentation callbacks
+ * for the virtual environment. Wraps the host {@link Instrumentation} and hooks activity
+ * creation, application creation, and other lifecycle events to ensure proper context
+ * and configuration within BlackBox.
+ */
 public final class AppInstrumentation extends BaseInstrumentationDelegate implements IInjectHook {
 
     private static final String TAG = AppInstrumentation.class.getSimpleName();
 
     private static AppInstrumentation sAppInstrumentation;
 
+    /**
+     * Returns the singleton instance of {@link AppInstrumentation}, creating it lazily
+     * on first access using double-checked locking.
+     *
+     * @return the singleton AppInstrumentation instance
+     */
     public static AppInstrumentation get() {
         if (sAppInstrumentation == null) {
             synchronized (AppInstrumentation.class) {
@@ -42,9 +54,17 @@ public final class AppInstrumentation extends BaseInstrumentationDelegate implem
         return sAppInstrumentation;
     }
 
+    /**
+     * Constructs a new AppInstrumentation instance.
+     */
     public AppInstrumentation() {
     }
 
+    /**
+     * Injects this instrumentation into the current ActivityThread by replacing
+     * the host's instrumentation with this delegate. Skips injection if the
+     * instrumentation is already properly set up.
+     */
     @Override
     public void injectHook() {
         try {
@@ -63,6 +83,11 @@ public final class AppInstrumentation extends BaseInstrumentationDelegate implem
         return BRActivityThread.get(currentActivityThread).mInstrumentation();
     }
 
+    /**
+     * Checks whether the instrumentation environment has been tampered with.
+     *
+     * @return true if the current instrumentation is not the expected delegate, false otherwise
+     */
     @Override
     public boolean isBadEnv() {
         return !checkInstrumentation(getCurrInstrumentation());
@@ -115,6 +140,17 @@ public final class AppInstrumentation extends BaseInstrumentationDelegate implem
         ActivityManagerCompat.setActivityOrientation(activity, info.screenOrientation);
     }
 
+    /**
+     * Creates a new Application instance, fixing the context and loading Xposed modules.
+     *
+     * @param cl        the ClassLoader with which to instantiate the object
+     * @param className the class name of the Application to instantiate
+     * @param context   the context to use for initialization
+     * @return the newly created Application
+     * @throws InstantiationException if the class cannot be instantiated
+     * @throws IllegalAccessException if the class or its nullary constructor is not accessible
+     * @throws ClassNotFoundException if the class cannot be found
+     */
     @Override
     public Application newApplication(ClassLoader cl, String className, Context context) throws InstantiationException, IllegalAccessException, ClassNotFoundException {
         ContextCompat.fix(context);
@@ -122,24 +158,57 @@ public final class AppInstrumentation extends BaseInstrumentationDelegate implem
         return super.newApplication(cl, className, context);
     }
 
+    /**
+     * Called when an activity is being created with a persistent state bundle.
+     * Applies context fixes and activity configuration before delegating to the base.
+     *
+     * @param activity         the activity being created
+     * @param icicle           the saved instance state bundle, or null
+     * @param persistentState  the persistent saved instance state, or null
+     */
     @Override
     public void callActivityOnCreate(Activity activity, Bundle icicle, PersistableBundle persistentState) {
         checkActivity(activity);
         super.callActivityOnCreate(activity, icicle, persistentState);
     }
 
+    /**
+     * Called when an activity is being created. Applies context fixes and activity
+     * configuration before delegating to the base.
+     *
+     * @param activity  the activity being created
+     * @param icicle    the saved instance state bundle, or null
+     */
     @Override
     public void callActivityOnCreate(Activity activity, Bundle icicle) {
         checkActivity(activity);
         super.callActivityOnCreate(activity, icicle);
     }
 
+    /**
+     * Called when the application is being created. Checks the HCallback environment
+     * before delegating to the base.
+     *
+     * @param app the Application being created
+     */
     @Override
     public void callApplicationOnCreate(Application app) {
         checkHCallback();
         super.callApplicationOnCreate(app);
     }
 
+    /**
+     * Creates a new Activity instance from a class name. Falls back to the base
+     * instrumentation if the class is not found via the delegate's class loader.
+     *
+     * @param cl        the ClassLoader to use
+     * @param className the fully qualified class name of the Activity
+     * @param intent    the Intent that started the Activity
+     * @return the newly created Activity
+     * @throws InstantiationException if the class cannot be instantiated
+     * @throws IllegalAccessException if the class or its nullary constructor is not accessible
+     * @throws ClassNotFoundException if the class cannot be found
+     */
     public Activity newActivity(ClassLoader cl, String className, Intent intent) throws InstantiationException, IllegalAccessException, ClassNotFoundException {
         try {
             return super.newActivity(cl, className, intent);

@@ -71,7 +71,12 @@ import top.niunaijun.blackbox.utils.Slog;
 import top.niunaijun.blackbox.utils.compat.AccountManagerCompat;
 
 /**
- * Created by BlackBox on 2022/3/3.
+ * Virtual implementation of the Android {@link android.accounts.AccountManager} system service.
+ * Manages account creation, authentication, token caching, and visibility within the virtual
+ * environment. Each virtual user has isolated account storage via {@link BUserAccounts}.
+ *
+ * <p>Handles authenticator binding, account cloning across users, and persists account data
+ * to disk using {@link Parcel}-based serialization.</p>
  */
 @SuppressLint("InlinedApi")
 public class BAccountManagerService extends IBAccountManagerService.Stub implements ISystemService , PackageMonitor {
@@ -95,15 +100,22 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
     private final Context mContext;
 
+    /**
+     * Returns the singleton instance of this service.
+     *
+     * @return the global BAccountManagerService instance
+     */
     public static BAccountManagerService get() {
         return sService;
     }
 
+    /** Constructs the service and initializes the package manager reference. */
     public BAccountManagerService() {
         mContext = BlackBoxCore.getContext();
         mPms = BPackageManagerService.get();
     }
 
+    /** Loads persisted accounts and authenticator cache, then registers for package events. */
     @Override
     public void systemReady() {
         loadAccounts();
@@ -111,11 +123,13 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         mPms.addPackageMonitor(this);
     }
 
+    /** Reloads the authenticator cache when a package is uninstalled. */
     @Override
     public void onPackageUninstalled(String packageName, boolean isRemove, int userId) {
         loadAuthenticatorCache(null);
     }
 
+    /** Reloads the authenticator cache for the installed package. */
     @Override
     public void onPackageInstalled(String packageName, int userId) {
         loadAuthenticatorCache(packageName);
@@ -174,6 +188,14 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         }
     }
 
+    /**
+     * Returns the password for the specified account in the given user.
+     *
+     * @param account the account whose password to retrieve; must not be null
+     * @param userId  the virtual user ID
+     * @return the password string, or null if not found
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public String getPassword(Account account, int userId) throws RemoteException {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
@@ -186,6 +208,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         return readPasswordInternal(accounts, account);
     }
 
+    /**
+     * Returns a user data value for the specified account.
+     *
+     * @param account the account to query; must not be null
+     * @param key     the user data key; must not be null
+     * @param userId  the virtual user ID
+     * @return the value associated with the key, or null
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public String getUserData(Account account, String key, int userId) throws RemoteException {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
@@ -199,6 +230,13 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         return readUserDataInternal(accounts, account, key);
     }
 
+    /**
+     * Returns authenticator types registered for the given user.
+     *
+     * @param userId the virtual user ID
+     * @return array of authenticator descriptions
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public AuthenticatorDescription[] getAuthenticatorTypes(int userId) throws RemoteException {
         // Only allow the system process to read accounts of other users
@@ -215,6 +253,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         return authenticatorDescriptions.toArray(new AuthenticatorDescription[]{});
     }
 
+    /**
+     * Returns visible accounts for a specific package in the given user.
+     *
+     * @param packageName the package name to check visibility for
+     * @param uid         the calling UID (currently unused)
+     * @param userId      the virtual user ID
+     * @return array of visible accounts
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public Account[] getAccountsForPackage(String packageName, int uid, int userId) throws RemoteException {
         // Only allow the system process to read accounts of other users
@@ -231,6 +278,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         return accounts.toArray(new Account[]{});
     }
 
+    /**
+     * Returns accounts of a given type that are visible to a specific package.
+     *
+     * @param type        the account type to filter by
+     * @param packageName the package name to check visibility for
+     * @param userId      the virtual user ID
+     * @return array of matching visible accounts
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public Account[] getAccountsByTypeForPackage(String type, String packageName, int userId) throws RemoteException {
         // Only allow the system process to read accounts of other users
@@ -249,6 +305,14 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         return accounts.toArray(new Account[]{});
     }
 
+    /**
+     * Returns all accounts of the specified type for the given user.
+     *
+     * @param accountType the account type to filter by
+     * @param userId      the virtual user ID
+     * @return array of matching accounts
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public Account[] getAccountsAsUser(String accountType, int userId) throws RemoteException {
         BUserAccounts userAccounts = getUserAccounts(userId);
@@ -263,6 +327,17 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         return accounts.toArray(new Account[]{});
     }
 
+    /**
+     * Asynchronously retrieves accounts matching the given type and features.
+     * If no features are specified, returns accounts from the cache directly.
+     * Otherwise, authenticates each account against the requested features.
+     *
+     * @param response callback for the result
+     * @param accountType the account type to filter by
+     * @param features    required features; may be null or empty
+     * @param userId      the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void getAccountByTypeAndFeatures(IAccountManagerResponse response, String accountType, String[] features, int userId) throws RemoteException {
         if (response == null) throw new IllegalArgumentException("response is null");
@@ -310,6 +385,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
                 true /* include managed not visible */).bind();
     }
 
+    /**
+     * Asynchronously retrieves accounts of the given type that support the specified features.
+     *
+     * @param response callback for the result bundle containing the matching accounts
+     * @param type     the account type to filter by
+     * @param features required features; may be null or empty
+     * @param userId   the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void getAccountsByFeatures(IAccountManagerResponse response, String type, String[] features, int userId) throws RemoteException {
         if (response == null) throw new IllegalArgumentException("response is null");
@@ -336,11 +420,30 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
                 false /* include managed not visible */).bind();
     }
 
+    /**
+     * Adds an account explicitly with password and optional extras.
+     *
+     * @param account the account to add
+     * @param password the account password; may be null
+     * @param extras   key-value pairs of user data; may be null
+     * @param userId   the virtual user ID
+     * @return true if the account was added, false if it already exists
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public boolean addAccountExplicitly(Account account, String password, Bundle extras, int userId) throws RemoteException {
         return addAccountExplicitlyWithVisibility(account, password, extras, null, userId);
     }
 
+    /**
+     * Asynchronously removes an account, delegating to the authenticator for confirmation.
+     *
+     * @param response             callback for the result
+     * @param account              the account to remove
+     * @param expectActivityLaunch whether an activity launch is expected
+     * @param userId               the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void removeAccountAsUser(IAccountManagerResponse response, Account account, boolean expectActivityLaunch, int userId) throws RemoteException {
         Preconditions.checkArgument(account != null, "account cannot be null");
@@ -355,6 +458,14 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         new RemoveAccountSession(accounts, response, account, expectActivityLaunch).bind();
     }
 
+    /**
+     * Removes an account directly without authenticator confirmation.
+     *
+     * @param account the account to remove; must not be null
+     * @param userId  the virtual user ID
+     * @return true if the account was found and removed
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public boolean removeAccountExplicitly(Account account, int userId) throws RemoteException {
         final int callingUid = Binder.getCallingUid();
@@ -375,6 +486,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         return removeAccountInternal(accounts, account);
     }
 
+    /**
+     * Copies an account from one virtual user to another by cloning credentials through the authenticator.
+     *
+     * @param response callback for the result
+     * @param account  the account to copy
+     * @param userFrom the source virtual user ID
+     * @param userTo   the destination virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void copyAccountToUser(IAccountManagerResponse response, Account account, int userFrom, int userTo) throws RemoteException {
         final BUserAccounts fromAccounts = getUserAccounts(userFrom);
@@ -421,6 +541,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         }.bind();
     }
 
+    /**
+     * Invalidates a specific auth token for all accounts of the given type, removing it
+     * from both the persistent storage and the in-memory token cache.
+     *
+     * @param accountType the account type whose tokens to invalidate
+     * @param authToken   the specific token value to invalidate
+     * @param userId      the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void invalidateAuthToken(String accountType, String authToken, int userId) throws RemoteException {
         BUserAccounts accounts = getUserAccounts(userId);
@@ -448,6 +577,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         }
     }
 
+    /**
+     * Returns the cached auth token for the given account and token type, if it exists.
+     *
+     * @param account       the account to query
+     * @param authTokenType the token type to look up
+     * @param userId        the virtual user ID
+     * @return the cached token value, or null if not found
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public String peekAuthToken(Account account, String authTokenType, int userId) throws RemoteException {
         Objects.requireNonNull(account, "account cannot be null");
@@ -460,6 +598,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         }
     }
 
+    /**
+     * Stores an auth token for the given account and token type.
+     *
+     * @param account       the account to update
+     * @param authTokenType the token type key
+     * @param authToken     the token value to store
+     * @param userId        the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void setAuthToken(Account account, String authTokenType, String authToken, int userId) throws RemoteException {
         Objects.requireNonNull(account, "account cannot be null");
@@ -474,6 +621,14 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         }
     }
 
+    /**
+     * Sets the password for an account. Clears all cached auth tokens for the account.
+     *
+     * @param account  the account whose password to set
+     * @param password the new password; null to clear
+     * @param userId   the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void setPassword(Account account, String password, int userId) throws RemoteException {
         Objects.requireNonNull(account, "account cannot be null");
@@ -497,11 +652,27 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         }
     }
 
+    /**
+     * Clears the password for an account (sets it to null).
+     *
+     * @param account the account whose password to clear
+     * @param userId  the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void clearPassword(Account account, int userId) throws RemoteException {
         setPassword(account, null, userId);
     }
 
+    /**
+     * Stores a user-defined key-value pair for the given account.
+     *
+     * @param account the account to update
+     * @param key     the data key; must not be null
+     * @param value   the data value; may be null to remove
+     * @param userId  the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void setUserData(Account account, String key, String value, int userId) throws RemoteException {
         if (key == null) throw new IllegalArgumentException("key is null");
@@ -521,6 +692,19 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         // system
     }
 
+    /**
+     * Retrieves an auth token for the given account, using cache when available.
+     * Falls back to the authenticator service if the token is not cached.
+     *
+     * @param response           callback for the result bundle
+     * @param account            the account to get a token for
+     * @param authTokenType      the type of token to retrieve
+     * @param notifyOnAuthFailure whether to notify on authentication failure
+     * @param expectActivityLaunch whether an activity launch is expected
+     * @param loginOptions       additional options for the authenticator
+     * @param userId             the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void getAuthToken(IAccountManagerResponse response, Account account, String authTokenType, boolean notifyOnAuthFailure, boolean expectActivityLaunch, Bundle loginOptions, int userId) throws RemoteException {
         Preconditions.checkArgument(response != null, "response cannot be null");
@@ -667,6 +851,18 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         }.bind();
     }
 
+    /**
+     * Initiates adding a new account of the specified type through the authenticator.
+     *
+     * @param response        callback for the result
+     * @param accountType     the type of account to add
+     * @param authTokenType   the auth token type; may be null
+     * @param requiredFeatures required features for the authenticator; may be null
+     * @param expectActivityLaunch whether an activity launch is expected
+     * @param optionsIn       additional options; may be null
+     * @param userId          the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void addAccount(IAccountManagerResponse response, String accountType, String authTokenType, String[] requiredFeatures, boolean expectActivityLaunch, Bundle optionsIn, int userId) throws RemoteException {
         if (response == null) throw new IllegalArgumentException("response is null");
@@ -702,6 +898,17 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         // ignore
     }
 
+    /**
+     * Initiates credential update for an existing account through the authenticator.
+     *
+     * @param response           callback for the result
+     * @param account            the account to update
+     * @param authTokenType      the auth token type; may be null
+     * @param expectActivityLaunch whether an activity launch is expected
+     * @param loginOptions       additional options for the authenticator
+     * @param userId             the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void updateCredentials(IAccountManagerResponse response, Account account, String authTokenType, boolean expectActivityLaunch, Bundle loginOptions, int userId) throws RemoteException {
         if (response == null) throw new IllegalArgumentException("response is null");
@@ -726,6 +933,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         }.bind();
     }
 
+    /**
+     * Edits properties of an account type through the authenticator.
+     *
+     * @param response           callback for the result
+     * @param accountType        the account type whose properties to edit
+     * @param expectActivityLaunch whether an activity launch is expected
+     * @param userId             the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void editProperties(IAccountManagerResponse response, String accountType, boolean expectActivityLaunch, int userId) throws RemoteException {
         if (response == null) throw new IllegalArgumentException("response is null");
@@ -752,6 +968,14 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         // ignore
     }
 
+    /**
+     * Confirms that the given account has been recently authenticated.
+     *
+     * @param account the account to confirm
+     * @param userId  the virtual user ID
+     * @return true if the account exists and the timestamp was updated
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public boolean accountAuthenticated(Account account, int userId) throws RemoteException {
         Objects.requireNonNull(account, "account cannot be null");
@@ -761,6 +985,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         return updateLastAuthenticatedTime(userAccounts, account);
     }
 
+    /**
+     * Retrieves the human-readable label for an auth token type through the authenticator.
+     *
+     * @param response      callback for the result bundle
+     * @param accountType   the account type
+     * @param authTokenType the token type whose label to retrieve
+     * @param userId        the virtual user ID
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public void getAuthTokenLabel(IAccountManagerResponse response, String accountType, String authTokenType, int userId) throws RemoteException {
         Preconditions.checkArgument(accountType != null, "accountType cannot be null");
@@ -798,6 +1031,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         }.bind();
     }
 
+    /**
+     * Returns the package-to-visibility mapping for the given account.
+     * Currently returns an empty map (not fully implemented).
+     *
+     * @param account the account to query
+     * @param userId  the virtual user ID
+     * @return an empty map
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public Map getPackagesAndVisibilityForAccount(Account account, int userId) throws RemoteException {
         return new HashMap<>();
@@ -907,11 +1149,28 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
     }
 
+    /**
+     * Returns all accounts for the given virtual user.
+     *
+     * @param userId        the virtual user ID
+     * @param opPackageName the calling package name (for logging)
+     * @return array of all accounts registered for the user
+     */
     public Account[] getAccounts(int userId, String opPackageName) {
         BUserAccounts userAccounts = getUserAccounts(userId);
         return userAccounts.accounts.toArray(new Account[]{});
     }
 
+    /**
+     * Adds an account with optional extras and per-package visibility settings.
+     *
+     * @param account             the account to add
+     * @param password            the password; may be null
+     * @param extras              key-value user data; may be null
+     * @param packageToVisibility per-package visibility map; may be null
+     * @param userId              the virtual user ID
+     * @return true if the account was added, false if it already exists
+     */
     @Override
     public boolean addAccountExplicitlyWithVisibility(Account account, String password,
                                                       Bundle extras, Map packageToVisibility, int userId) {
@@ -927,6 +1186,16 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
                 (Map<String, Integer>) packageToVisibility);
     }
 
+    /**
+     * Sets the visibility of an account for a specific package.
+     *
+     * @param account       the account to configure
+     * @param packageName   the target package
+     * @param newVisibility the new visibility level (e.g., {@link android.accounts.AccountManager#VISIBILITY_VISIBLE})
+     * @param userId        the virtual user ID
+     * @return true if the account was found and visibility was set
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public boolean setAccountVisibility(Account account, String packageName, int newVisibility, int userId) throws RemoteException {
         Objects.requireNonNull(account, "account cannot be null");
@@ -937,6 +1206,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         return setAccountVisibility(account, packageName, newVisibility, userAccounts);
     }
 
+    /**
+     * Returns the visibility of an account for a specific package.
+     *
+     * @param account     the account to query
+     * @param packageName the package to check visibility for
+     * @param userId      the virtual user ID
+     * @return the visibility level constant
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public int getAccountVisibility(Account account, String packageName, int userId) throws RemoteException {
         Objects.requireNonNull(account, "account cannot be null");
@@ -961,6 +1239,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         return resolveAccountVisibility(account, packageName, accounts);
     }
 
+    /**
+     * Returns accounts of the specified type along with their visibility for the given package.
+     *
+     * @param packageName the package name to check
+     * @param accountType the account type to filter by
+     * @param userId      the virtual user ID
+     * @return map of accounts to their visibility levels
+     * @throws RemoteException if the remote call fails
+     */
     @Override
     public Map getAccountsAndVisibilityForPackage(String packageName, String accountType, int userId) throws RemoteException {
         Map<Account, Integer> hashMap = new HashMap<>();
@@ -1177,6 +1464,13 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         }
     }
 
+    /**
+     * Reads the password for the given account from the user accounts storage.
+     *
+     * @param accounts the user accounts container
+     * @param account  the account whose password to read
+     * @return the password string, or null if not found
+     */
     public String readPasswordInternal(BUserAccounts accounts, Account account) {
         if (accounts == null)
             return null;
@@ -1188,6 +1482,12 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         }
     }
 
+    /**
+     * Returns (or creates) the {@link BUserAccounts} for the given virtual user ID.
+     *
+     * @param userId the virtual user ID
+     * @return the user accounts container; never null
+     */
     public BUserAccounts getUserAccounts(int userId) {
         synchronized (mUserAccountsMap) {
             BUserAccounts bUserAccounts = mUserAccountsMap.get(userId);
@@ -1405,6 +1705,12 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         }
     }
 
+    /**
+     * Reloads the authenticator cache from installed packages. If a package name is specified,
+     * only that package's authenticator is loaded; otherwise all packages are scanned.
+     *
+     * @param packageName the specific package to load, or null for all packages
+     */
     public void loadAuthenticatorCache(String packageName) {
         mAuthenticatorCache.authenticators.clear();
         Intent intent = new Intent(AccountManager.ACTION_AUTHENTICATOR_INTENT);

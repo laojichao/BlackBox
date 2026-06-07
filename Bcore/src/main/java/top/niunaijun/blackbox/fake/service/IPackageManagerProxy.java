@@ -32,25 +32,44 @@ import top.niunaijun.blackbox.utils.compat.BuildCompat;
 import top.niunaijun.blackbox.utils.compat.ParceledListSliceCompat;
 
 /**
- * Created by Milk on 3/30/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Proxy for the Android Package Manager system service (IPackageManager).
+ * Intercepts all package management operations to resolve package info,
+ * activity/service/provider/receiver info, intent resolution, and installed
+ * package queries through the virtual environment's package manager. Falls
+ * back to the real system service for packages that are not installed in the
+ * virtual environment (open packages).
+ *
+ * @author Milk
  */
 public class IPackageManagerProxy extends BinderInvocationStub {
+    /** Tag used for logging within this proxy. */
     public static final String TAG = "PackageManagerStub";
 
+    /**
+     * Constructs a new proxy by obtaining the system package manager binder.
+     */
     public IPackageManagerProxy() {
         super(BRActivityThread.get().sPackageManager().asBinder());
     }
 
+    /**
+     * Returns the IPackageManager interface instance from the system service.
+     *
+     * @return the original IPackageManager binder interface
+     */
     @Override
     protected Object getWho() {
         return BRActivityThread.get().sPackageManager();
     }
 
+    /**
+     * Replaces the system Package Manager service with this proxy instance,
+     * updating both the ActivityThread's sPackageManager reference and the
+     * ApplicationPackageManager's mPM field via reflection.
+     *
+     * @param baseInvocation the original service invocation object
+     * @param proxyInvocation the proxy invocation object to inject
+     */
     @Override
     protected void inject(Object baseInvocation, Object proxyInvocation) {
         BRActivityThread.get()._set_sPackageManager(proxyInvocation);
@@ -68,11 +87,20 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Checks if the environment has been corrupted by another proxy.
+     *
+     * @return always returns false
+     */
     @Override
     public boolean isBadEnv() {
         return false;
     }
 
+    /**
+     * Binds value-returning and package-name-aware method hooks for
+     * permission change listeners and permission rationale queries.
+     */
     @Override
     protected void onBindMethod() {
         super.onBindMethod();
@@ -81,8 +109,23 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         addMethodHook(new PkgMethodProxy("shouldShowRequestPermissionRationale"));
     }
 
+    /**
+     * Hook that intercepts {@code resolveIntent} to resolve intents through
+     * the virtual environment's package manager before falling back to the system.
+     */
     @ProxyMethod("resolveIntent")
     public static class ResolveIntent extends MethodHook {
+
+        /**
+         * Resolves the intent using the virtual package manager; returns the result
+         * if found, otherwise delegates to the original method.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; args[0] is the Intent, args[1] is resolvedType, args[2] is flags
+         * @return a ResolveInfo from the virtual or real package manager
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             Intent intent = (Intent) args[0];
@@ -96,8 +139,23 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code resolveService} to resolve service intents
+     * through the virtual environment's package manager before falling back.
+     */
     @ProxyMethod("resolveService")
     public static class ResolveService extends MethodHook {
+
+        /**
+         * Resolves the service using the virtual package manager; returns the result
+         * if found, otherwise delegates to the original method.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; args[0] is the Intent, args[1] is resolvedType, args[2] is flags
+         * @return a ResolveInfo from the virtual or real package manager
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             Intent intent = (Intent) args[0];
@@ -111,16 +169,45 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code setComponentEnabledSetting} to silently
+     * ignore component state changes within the virtual environment.
+     */
     @ProxyMethod("setComponentEnabledSetting")
     public static class SetComponentEnabledSetting extends MethodHook {
+
+        /**
+         * Suppresses the call by returning 0 immediately.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments (unused)
+         * @return always returns 0
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return 0;
         }
     }
 
+    /**
+     * Hook that intercepts {@code getPackageInfo} to return package info
+     * from the virtual environment's package manager.
+     */
     @ProxyMethod("getPackageInfo")
     public static class GetPackageInfo extends MethodHook {
+
+        /**
+         * Retrieves package info from the virtual package manager; falls back to the
+         * real system service for open packages, or returns null if not found.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; args[0] is packageName, args[1] is flags
+         * @return the PackageInfo, or null if not found in the virtual environment
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             String packageName = (String) args[0];
@@ -139,8 +226,22 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getPackageUid} to replace the package name
+     * with the virtual environment's equivalent before delegation.
+     */
     @ProxyMethod("getPackageUid")
     public static class GetPackageUid extends MethodHook {
+
+        /**
+         * Replaces the first app package name argument and delegates to the original method.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; the first package name is replaced
+         * @return the result of the original method invocation
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             MethodParameterUtils.replaceFirstAppPkg(args);
@@ -148,8 +249,23 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getProviderInfo} to return provider info
+     * from the virtual environment's package manager.
+     */
     @ProxyMethod("getProviderInfo")
     public static class GetProviderInfo extends MethodHook {
+
+        /**
+         * Retrieves provider info from the virtual package manager; falls back to the
+         * real system service for open packages, or returns null if not found.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; args[0] is ComponentName, args[1] is flags
+         * @return the ProviderInfo, or null if not found
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             ComponentName componentName = (ComponentName) args[0];
@@ -164,8 +280,23 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getReceiverInfo} to return broadcast receiver info
+     * from the virtual environment's package manager.
+     */
     @ProxyMethod("getReceiverInfo")
     public static class GetReceiverInfo extends MethodHook {
+
+        /**
+         * Retrieves receiver info from the virtual package manager; falls back to the
+         * real system service for open packages, or returns null if not found.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; args[0] is ComponentName, args[1] is flags
+         * @return the ActivityInfo for the receiver, or null if not found
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             ComponentName componentName = (ComponentName) args[0];
@@ -180,8 +311,23 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getActivityInfo} to return activity info
+     * from the virtual environment's package manager.
+     */
     @ProxyMethod("getActivityInfo")
     public static class GetActivityInfo extends MethodHook {
+
+        /**
+         * Retrieves activity info from the virtual package manager; falls back to the
+         * real system service for open packages, or returns null if not found.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; args[0] is ComponentName, args[1] is flags
+         * @return the ActivityInfo, or null if not found
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             ComponentName componentName = (ComponentName) args[0];
@@ -196,9 +342,23 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getServiceInfo} to return service info
+     * from the virtual environment's package manager.
+     */
     @ProxyMethod("getServiceInfo")
     public static class GetServiceInfo extends MethodHook {
 
+        /**
+         * Retrieves service info from the virtual package manager; falls back to the
+         * real system service for open packages, or returns null if not found.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; args[0] is ComponentName, args[1] is flags
+         * @return the ServiceInfo, or null if not found
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             ComponentName componentName = (ComponentName) args[0];
@@ -213,9 +373,23 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getInstalledApplications} to return only
+     * applications installed in the virtual environment.
+     */
     @ProxyMethod("getInstalledApplications")
     public static class GetInstalledApplications extends MethodHook {
 
+        /**
+         * Returns the list of installed applications from the virtual package manager
+         * wrapped in a ParceledListSlice.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; args[0] is flags
+         * @return a ParceledListSlice of ApplicationInfo objects
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int flags = (int) args[0];
@@ -224,9 +398,23 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getInstalledPackages} to return only
+     * packages installed in the virtual environment.
+     */
     @ProxyMethod("getInstalledPackages")
     public static class GetInstalledPackages extends MethodHook {
 
+        /**
+         * Returns the list of installed packages from the virtual package manager
+         * wrapped in a ParceledListSlice.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; args[0] is flags
+         * @return a ParceledListSlice of PackageInfo objects
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int flags = (int) args[0];
@@ -235,8 +423,23 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getApplicationInfo} to return application info
+     * from the virtual environment's package manager.
+     */
     @ProxyMethod("getApplicationInfo")
     public static class GetApplicationInfo extends MethodHook {
+
+        /**
+         * Retrieves application info from the virtual package manager; falls back to the
+         * real system service for open packages, or returns null if not found.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; args[0] is packageName, args[1] is flags
+         * @return the ApplicationInfo, or null if not found
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             String packageName = (String) args[0];
@@ -255,8 +458,22 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code queryContentProviders} to return content providers
+     * from the virtual environment's package manager.
+     */
     @ProxyMethod("queryContentProviders")
     public static class QueryContentProviders extends MethodHook {
+
+        /**
+         * Queries content providers for the current virtual app's process name and UID.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; args[2] is flags
+         * @return a ParceledListSlice of ProviderInfo objects
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int flags = (int) args[2];
@@ -266,8 +483,23 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code queryIntentReceivers} to query broadcast receivers
+     * through the virtual environment's package manager.
+     */
     @ProxyMethod("queryIntentReceivers")
     public static class QueryBroadcastReceivers extends MethodHook {
+
+        /**
+         * Queries broadcast receivers matching the intent from the virtual package manager.
+         * Returns a ParceledListSlice on Android N+ or a plain list on older versions.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments containing Intent, type, and flags
+         * @return a list or ParceledListSlice of ResolveInfo objects
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             Intent intent = MethodParameterUtils.getFirstParam(args, Intent.class);
@@ -286,8 +518,23 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code resolveContentProvider} to resolve content providers
+     * through the virtual environment's package manager before falling back.
+     */
     @ProxyMethod("resolveContentProvider")
     public static class ResolveContentProvider extends MethodHook {
+
+        /**
+         * Resolves the content provider by authority from the virtual package manager;
+         * falls back to the real system service if not found.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; args[0] is authority, args[1] is flags
+         * @return the ProviderInfo from the virtual or real package manager
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             String authority = (String) args[0];
@@ -300,8 +547,22 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code canRequestPackageInstalls} to replace the
+     * package name before delegating to the system service.
+     */
     @ProxyMethod("canRequestPackageInstalls")
     public static class CanRequestPackageInstalls extends MethodHook {
+
+        /**
+         * Replaces the first app package name argument and delegates to the original method.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; the first package name is replaced
+         * @return the result of the original method invocation
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             MethodParameterUtils.replaceFirstAppPkg(args);
@@ -309,8 +570,23 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getPackagesForUid} to return the virtual app's
+     * package names for a given UID, translating host UIDs to virtual UIDs.
+     */
     @ProxyMethod("getPackagesForUid")
     public static class GetPackagesForUid extends MethodHook {
+
+        /**
+         * Translates the host UID to the virtual UID if necessary, then returns
+         * the package names from the virtual package manager.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments; args[0] is the UID
+         * @return an array of package names associated with the UID
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int uid = (Integer) args[0];
@@ -324,8 +600,22 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getInstallerPackageName} to fake the installer
+     * as Google Play Store (com.android.vending).
+     */
     @ProxyMethod("getInstallerPackageName")
     public static class GetInstallerPackageName extends MethodHook {
+
+        /**
+         * Returns "com.android.vending" to indicate Google Play as the installer.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments (unused)
+         * @return always returns "com.android.vending"
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             // fake google play
@@ -333,8 +623,22 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getSharedLibraries} to return an empty list,
+     * hiding shared library information within the virtual environment.
+     */
     @ProxyMethod("getSharedLibraries")
     public static class GetSharedLibraries extends MethodHook {
+
+        /**
+         * Returns an empty ParceledListSlice to hide shared libraries.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments (unused)
+         * @return an empty ParceledListSlice
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             // todo
@@ -342,8 +646,22 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code getComponentEnabledSetting} to always return
+     * the default component enabled state.
+     */
     @ProxyMethod("getComponentEnabledSetting")
     public static class getComponentEnabledSetting extends MethodHook {
+
+        /**
+         * Returns COMPONENT_ENABLED_STATE_DEFAULT regardless of the actual setting.
+         *
+         * @param who the original object being hooked
+         * @param method the method being intercepted
+         * @param args the method arguments (unused)
+         * @return PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+         * @throws Throwable if the underlying method call fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return PackageManager.COMPONENT_ENABLED_STATE_DEFAULT;

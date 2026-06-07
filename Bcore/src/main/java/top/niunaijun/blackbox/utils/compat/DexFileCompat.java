@@ -7,15 +7,25 @@ import dalvik.system.DexFile;
 import top.niunaijun.blackbox.utils.Reflector;
 
 /**
- * Created by Milk on 2021/5/16.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Compatibility utility for accessing {@link dalvik.system.DexFile} internal structures.
+ * <p>
+ * Uses reflection to extract native DEX file cookie values from a ClassLoader's internal
+ * {@code DexPathList}. On Android 6.0 (Marshmallow) and above, the {@code mCookie} field
+ * is a {@code long[]} array (supporting multi-dex); on older versions it is a single
+ * {@code long}. These cookies are used internally by the virtual environment to manage
+ * loaded DEX files.
  */
 public class DexFileCompat {
 
+    /**
+     * Retrieves all DEX file cookies from the given ClassLoader.
+     * <p>
+     * Extracts the {@code DexFile} objects from the ClassLoader's {@code pathList.dexElements}
+     * and collects their native cookie values.
+     *
+     * @param classLoader the ClassLoader to extract cookies from
+     * @return a list of native DEX file cookie values (long)
+     */
     public static List<Long> getCookies(ClassLoader classLoader) {
         List<Long> cookies = new ArrayList<>();
         List<DexFile> dexFiles = getDexFiles(classLoader);
@@ -25,6 +35,15 @@ public class DexFileCompat {
         return cookies;
     }
 
+    /**
+     * Retrieves the native cookie(s) from a single {@link DexFile} instance.
+     * <p>
+     * On Marshmallow+ the {@code mCookie} field is a {@code long[]} (one entry per DEX);
+     * on older versions it is a single {@code long} value.
+     *
+     * @param dexFile the DexFile to extract the cookie from (may be null)
+     * @return a list of cookie values; empty if the DexFile is null or extraction fails
+     */
     public static List<Long> getCookies(DexFile dexFile) {
         List<Long> cookies = new ArrayList<>();
         if (dexFile == null)

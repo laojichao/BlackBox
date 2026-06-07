@@ -6,7 +6,15 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-/** @hide */
+/**
+ * A file access service that reads files directly from the filesystem.
+ *
+ * <p>This is the simplest implementation of {@link BaseService}, suitable for environments
+ * where direct filesystem access is available (i.e. SELinux is permissive or the process has
+ * appropriate file permissions). It uses standard Java I/O to read files and check access.
+ *
+ * @hide
+ */
 public final class DirectAccessService extends BaseService {
     @Override
     public boolean hasDirectFileAccess() {

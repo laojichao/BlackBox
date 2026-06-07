@@ -37,27 +37,43 @@ import top.niunaijun.blackbox.utils.compat.BuildCompat;
 
 
 /**
- * Created by Milk on 3/31/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Proxy for the ActivityThread Handler callback (ActivityThread.H).
+ * Intercepts Handler messages to intercept activity launches and service creation
+ * within the virtual environment. Routes activity and service lifecycle events
+ * through the virtual activity manager instead of the real Android framework.
+ *
+ * @author Milk
  */
 public class HCallbackProxy implements IInjectHook, Handler.Callback {
+    /** Tag for logging. */
     public static final String TAG = "HCallbackStub";
+    /** The original Handler.Callback that was replaced. */
     private Handler.Callback mOtherCallback;
+    /** Atomic flag to prevent reentrant message handling. */
     private AtomicBoolean mBeing = new AtomicBoolean(false);
 
+    /**
+     * Retrieves the current Handler.Callback from ActivityThread's H handler.
+     *
+     * @return the current Handler.Callback, or null if not set
+     */
     private Handler.Callback getHCallback() {
         return BRHandler.get(getH()).mCallback();
     }
 
+    /**
+     * Retrieves the H handler from the current ActivityThread.
+     *
+     * @return the H handler instance
+     */
     private Handler getH() {
         Object currentActivityThread = BlackBoxCore.mainThread();
         return BRActivityThread.get(currentActivityThread).mH();
     }
 
+    /**
+     * Injects this callback into ActivityThread's H handler, replacing any existing callback.
+     */
     @Override
     public void injectHook() {
         mOtherCallback = getHCallback();
@@ -67,12 +83,25 @@ public class HCallbackProxy implements IInjectHook, Handler.Callback {
         BRHandler.get(getH())._set_mCallback(this);
     }
 
+    /**
+     * Checks if the environment is invalid (callback has been replaced by another).
+     *
+     * @return true if the callback has been replaced by a different instance
+     */
     @Override
     public boolean isBadEnv() {
         Handler.Callback hCallback = getHCallback();
         return hCallback != null && hCallback != this;
     }
 
+    /**
+     * Handles messages from ActivityThread's H handler.
+     * Intercepts LAUNCH_ACTIVITY/EXECUTE_TRANSACTION and CREATE_SERVICE messages
+     * to redirect them through the virtual environment.
+     *
+     * @param msg the message to handle
+     * @return true if the message was handled, false otherwise
+     */
     @Override
     public boolean handleMessage(@NonNull Message msg) {
         if (!mBeing.getAndSet(true)) {
@@ -106,6 +135,12 @@ public class HCallbackProxy implements IInjectHook, Handler.Callback {
         return false;
     }
 
+    /**
+     * Extracts the LaunchActivityItem from a ClientTransaction object.
+     *
+     * @param clientTransaction the ClientTransaction object
+     * @return the LaunchActivityItem, or null if not found
+     */
     private Object getLaunchActivityItem(Object clientTransaction) {
         List<Object> mActivityCallbacks = BRClientTransaction.get(clientTransaction).mActivityCallbacks();
 
@@ -117,6 +152,13 @@ public class HCallbackProxy implements IInjectHook, Handler.Callback {
         return null;
     }
 
+    /**
+     * Handles activity launch by extracting the Intent, resolving the target activity
+     * in the virtual environment, and replacing the launch parameters accordingly.
+     *
+     * @param client the ClientTransaction or ActivityClientRecord object
+     * @return true if the launch should be re-queued, false to proceed normally
+     */
     private boolean handleLaunchActivity(Object client) {
         Object r;
         if (BuildCompat.isPie()) {
@@ -194,6 +236,13 @@ public class HCallbackProxy implements IInjectHook, Handler.Callback {
         return false;
     }
 
+    /**
+     * Handles service creation by redirecting through the virtual activity manager
+     * when running inside a virtual app process.
+     *
+     * @param data the CreateServiceData object containing service info
+     * @return true if the service creation was intercepted, false otherwise
+     */
     private boolean handleCreateService(Object data) {
         if (BActivityThread.getAppConfig() != null) {
             String appPackageName = BActivityThread.getAppPackageName();
@@ -212,6 +261,10 @@ public class HCallbackProxy implements IInjectHook, Handler.Callback {
         return false;
     }
 
+    /**
+     * Ensures the ActivityClientController is proxied for Android S and above.
+     * Creates and injects an IActivityClientProxy if needed.
+     */
     private void checkActivityClient() {
         try {
             Object activityClientController = BRActivityClient.get().getActivityClientController();

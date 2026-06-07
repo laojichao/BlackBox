@@ -28,9 +28,17 @@ import top.niunaijun.blackbox.core.env.BEnvironment;
 import top.niunaijun.blackbox.utils.FileUtils;
 
 /**
- * Settings data for a particular shared user ID we know about.
+ * Settings data for a particular shared user ID within the virtual environment.
+ * <p>
+ * Multiple virtual packages can share a single Linux UID by declaring the same shared user ID
+ * in their manifests. This class stores the mapping from a shared user name to its assigned UID
+ * and provides persistence via Parcel serialization to disk.
+ * <p>
+ * A static map ({@link #sSharedUsers}) holds all active shared user entries and is serialized
+ * atomically using {@link AtomicFile}.
  */
 public final class SharedUserSetting implements Parcelable {
+    /** Global registry of all shared user settings, keyed by shared user name. */
     public static final Map<String, SharedUserSetting> sSharedUsers = new HashMap<>();
 
     String name;
@@ -41,6 +49,11 @@ public final class SharedUserSetting implements Parcelable {
     int seInfoTargetSdkVersion;
 
 
+    /**
+     * Creates a new shared user setting with the given name.
+     *
+     * @param _name the shared user identifier (e.g., from android:sharedUserId in the manifest)
+     */
     SharedUserSetting(String _name) {
         name = _name;
     }
@@ -51,6 +64,9 @@ public final class SharedUserSetting implements Parcelable {
                 + name + "/" + userId + "}";
     }
 
+    /**
+     * Persists the current shared user registry to disk using atomic file writes.
+     */
     public static void saveSharedUsers() {
         Parcel parcel = Parcel.obtain();
         FileOutputStream fileOutputStream = null;
@@ -69,6 +85,9 @@ public final class SharedUserSetting implements Parcelable {
         }
     }
 
+    /**
+     * Loads shared user settings from disk into the static {@link #sSharedUsers} map.
+     */
     public static void loadSharedUsers() {
         Parcel parcel = Parcel.obtain();
         try {
@@ -88,11 +107,22 @@ public final class SharedUserSetting implements Parcelable {
         }
     }
 
+    /**
+     * Returns the Parcelable contents descriptor (always 0 for this class).
+     *
+     * @return 0
+     */
     @Override
     public int describeContents() {
         return 0;
     }
 
+    /**
+     * Writes this setting's fields to a Parcel for serialization.
+     *
+     * @param dest  the Parcel to write to
+     * @param flags additional flags for writing
+     */
     @Override
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeString(this.name);
@@ -100,11 +130,21 @@ public final class SharedUserSetting implements Parcelable {
         dest.writeInt(this.seInfoTargetSdkVersion);
     }
 
+    /**
+     * Reads fields from a Parcel into this existing instance.
+     *
+     * @param source the Parcel to read from
+     */
     public void readFromParcel(Parcel source) {
         this.name = source.readString();
         this.userId = source.readInt();
     }
 
+    /**
+     * Restores a SharedUserSetting from a Parcel.
+     *
+     * @param in the Parcel to read from
+     */
     protected SharedUserSetting(Parcel in) {
         this.name = in.readString();
         this.userId = in.readInt();

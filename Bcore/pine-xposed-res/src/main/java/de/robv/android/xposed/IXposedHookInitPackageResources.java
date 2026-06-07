@@ -25,9 +25,17 @@ public interface IXposedHookInitPackageResources extends IXposedMod {
 	/** @hide */
 	final class Wrapper extends XC_InitPackageResources {
 		private final IXposedHookInitPackageResources instance;
+
+		/**
+		 * Creates a wrapper that delegates to the given {@link IXposedHookInitPackageResources} instance.
+		 *
+		 * @param instance the module's init-package-resources hook implementation
+		 */
 		public Wrapper(IXposedHookInitPackageResources instance) {
 			this.instance = instance;
 		}
+
+		/** @hide */
 		@Override
 		public void handleInitPackageResources(InitPackageResourcesParam resparam) throws Throwable {
 			instance.handleInitPackageResources(resparam);

@@ -29,11 +29,24 @@ import top.niunaijun.blackbox.core.system.ProcessRecord;
 import top.niunaijun.blackbox.utils.compat.BuildCompat;
 
 /**
- * Created by BlackBox on 2022/3/15.
+ * Notification manager service for the BlackBox virtual environment.
+ * <p>
+ * Intercepts notification operations from virtual apps and routes them through the host
+ * device's real {@link NotificationManager}, using namespaced channel and group IDs to
+ * prevent collisions between virtual packages and between different virtual users.
+ * Maintains per-package {@link NotificationRecord} instances that track all channels,
+ * channel groups, and active notification IDs belonging to each virtual app.
+ * </p>
+ *
+ * <p>Channel and group IDs are mangled with a {@code @black-} or {@code @black-group-}
+ * suffix plus the user ID so that two virtual apps (or the same app in two users) never
+ * share a real Android notification channel.</p>
  */
 public class BNotificationManagerService extends IBNotificationManagerService.Stub implements ISystemService {
     private final static BNotificationManagerService sService = new BNotificationManagerService();
+    /** Suffix appended to virtual channel IDs to namespace them on the host device. */
     public static final String CHANNEL_BLACK = "@black-";
+    /** Suffix appended to virtual channel group IDs to namespace them on the host device. */
     public static final String GROUP_BLACK = "@black-group-";
 
     private NotificationChannelManager mNotificationChannelManager;
@@ -42,10 +55,19 @@ public class BNotificationManagerService extends IBNotificationManagerService.St
     private final NotificationManager mRealNotificationManager =
             (NotificationManager) BlackBoxCore.getContext().getSystemService(Context.NOTIFICATION_SERVICE);
 
+    /**
+     * Returns the singleton instance of this service.
+     *
+     * @return the global {@link BNotificationManagerService} instance
+     */
     public static BNotificationManagerService get() {
         return sService;
     }
 
+    /**
+     * Initializes the service by obtaining a reference to the shared
+     * {@link NotificationChannelManager}.
+     */
     @Override
     public void systemReady() {
         mNotificationChannelManager = NotificationChannelManager.get();
@@ -71,6 +93,15 @@ public class BNotificationManagerService extends IBNotificationManagerService.St
         }
     }
 
+    /**
+     * Retrieves the notification channel with the given ID for the calling virtual package.
+     *
+     * @param channelId the original (un-namespaced) channel ID
+     * @param userId    the virtual user ID
+     * @return the matching {@link NotificationChannel}, or {@code null} if the calling
+     *         process is unknown or the channel does not exist
+     * @throws RemoteException if remote binder communication fails
+     */
     @Override
     @TargetApi(Build.VERSION_CODES.O)
     public NotificationChannel getNotificationChannel(String channelId, int userId) throws RemoteException {
@@ -84,6 +115,14 @@ public class BNotificationManagerService extends IBNotificationManagerService.St
         }
     }
 
+    /**
+     * Returns all notification channels registered by a virtual package.
+     *
+     * @param packageName the virtual package name
+     * @param userId      the virtual user ID
+     * @return a list of all {@link NotificationChannel} instances for the package
+     * @throws RemoteException if remote binder communication fails
+     */
     @Override
     public List<NotificationChannel> getNotificationChannels(String packageName, int userId) throws RemoteException {
         NotificationRecord notificationRecord = getNotificationRecord(packageName, userId);
@@ -92,6 +131,14 @@ public class BNotificationManagerService extends IBNotificationManagerService.St
         }
     }
 
+    /**
+     * Returns all notification channel groups registered by a virtual package.
+     *
+     * @param packageName the virtual package name
+     * @param userId      the virtual user ID
+     * @return a list of all {@link NotificationChannelGroup} instances for the package
+     * @throws RemoteException if remote binder communication fails
+     */
     @Override
     public List<NotificationChannelGroup> getNotificationChannelGroups(String packageName, int userId) throws RemoteException {
         NotificationRecord notificationRecord = getNotificationRecord(packageName, userId);
@@ -100,6 +147,16 @@ public class BNotificationManagerService extends IBNotificationManagerService.St
         }
     }
 
+    /**
+     * Creates a notification channel for the calling virtual package.
+     * <p>
+     * The channel ID is namespaced with the user ID before registration on the host device,
+     * then restored to its original value so the virtual app sees no difference.
+     * </p>
+     *
+     * @param notificationChannel the channel configuration to create
+     * @param userId              the virtual user ID
+     */
     @Override
     @TargetApi(Build.VERSION_CODES.O)
     public void createNotificationChannel(NotificationChannel notificationChannel, int userId) {
@@ -117,6 +174,12 @@ public class BNotificationManagerService extends IBNotificationManagerService.St
         }
     }
 
+    /**
+     * Deletes a notification channel from the calling virtual package.
+     *
+     * @param channelId the original (un-namespaced) channel ID to delete
+     * @param userId    the virtual user ID
+     */
     @Override
     @TargetApi(Build.VERSION_CODES.O)
     public void deleteNotificationChannel(String channelId, int userId) {
@@ -134,6 +197,16 @@ public class BNotificationManagerService extends IBNotificationManagerService.St
         }
     }
 
+    /**
+     * Creates a notification channel group for the calling virtual package.
+     * <p>
+     * The group ID is namespaced with the user ID before registration on the host device.
+     * Any channels embedded in the group are also created.
+     * </p>
+     *
+     * @param notificationChannelGroup the group configuration to create
+     * @param userId                   the virtual user ID
+     */
     @Override
     @TargetApi(Build.VERSION_CODES.O)
     public void createNotificationChannelGroup(NotificationChannelGroup notificationChannelGroup, int userId) {
@@ -151,6 +224,12 @@ public class BNotificationManagerService extends IBNotificationManagerService.St
         }
     }
 
+    /**
+     * Deletes a notification channel group from the calling virtual package.
+     *
+     * @param groupId the original (un-namespaced) group ID to delete
+     * @param userId  the virtual user ID
+     */
     @Override
     @TargetApi(Build.VERSION_CODES.O)
     public void deleteNotificationChannelGroup(String groupId, int userId) {
@@ -168,6 +247,20 @@ public class BNotificationManagerService extends IBNotificationManagerService.St
         }
     }
 
+    /**
+     * Posts a notification on behalf of a virtual package.
+     * <p>
+     * Generates a unique notification ID by hashing the package name, user ID, and original
+     * notification ID together. On Android O and above, the notification's channel and group
+     * keys are remapped to their namespaced equivalents before posting to the real
+     * {@link NotificationManager}.
+     * </p>
+     *
+     * @param id           the original notification ID from the virtual app
+     * @param tag          the optional tag for the notification (may be {@code null})
+     * @param notification the {@link Notification} to post
+     * @param userId       the virtual user ID
+     */
     @Override
     public void enqueueNotificationWithTag(int id, String tag, Notification notification, int userId) {
         ProcessRecord processByPid = BProcessManagerService.get().findProcessByPid(Binder.getCallingPid());
@@ -195,6 +288,14 @@ public class BNotificationManagerService extends IBNotificationManagerService.St
         mRealNotificationManager.notify(notificationId, notification);
     }
 
+    /**
+     * Cancels a previously posted notification for the calling virtual package.
+     *
+     * @param id     the original notification ID from the virtual app
+     * @param tag    the optional tag for the notification (may be {@code null})
+     * @param userId the virtual user ID
+     * @throws RemoteException if remote binder communication fails
+     */
     @Override
     public void cancelNotificationWithTag(int id, String tag, int userId) throws RemoteException {
         ProcessRecord processByPid = BProcessManagerService.get().findProcessByPid(Binder.getCallingPid());
@@ -254,6 +355,13 @@ public class BNotificationManagerService extends IBNotificationManagerService.St
         }
     }
 
+    /**
+     * Removes all notification channels, channel groups, and active notifications belonging
+     * to a virtual package, and discards its {@link NotificationRecord}.
+     *
+     * @param packageName the virtual package name to clean up
+     * @param userId      the virtual user ID
+     */
     @SuppressLint("NewApi")
     public void deletePackageNotification(String packageName, int userId) {
         NotificationRecord notificationRecord = getNotificationRecord(packageName, userId);
@@ -299,6 +407,15 @@ public class BNotificationManagerService extends IBNotificationManagerService.St
         return groupId.split(GROUP_BLACK)[0];
     }
 
+    /**
+     * Generates a deterministic, collision-resistant notification ID by hashing the
+     * concatenation of the package name, user ID, and original notification ID.
+     *
+     * @param userId         the virtual user ID
+     * @param notificationId the original notification ID from the virtual app
+     * @param packageName    the virtual package name
+     * @return a unique integer notification ID suitable for the host {@link NotificationManager}
+     */
     public static int getNotificationId(int userId, int notificationId, String packageName) {
         return (packageName + userId + notificationId).hashCode();
     }

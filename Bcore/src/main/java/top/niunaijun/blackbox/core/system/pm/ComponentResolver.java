@@ -16,12 +16,18 @@ import top.niunaijun.blackbox.utils.Slog;
 
 
 /**
- * Created by Milk on 4/14/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Resolves intents to activities, services, providers, and broadcast receivers
+ * within the virtual environment.
+ *
+ * <p>Maintains internal indexes of all registered components using
+ * {@link IntentResolver}-based sub-resolvers for each component type. Supports
+ * both global queries (across all packages) and package-scoped queries. Provider
+ * lookups by authority are backed by an {@link ArrayMap} for O(log n) access.</p>
+ *
+ * <p>All public methods are thread-safe and synchronized on an internal lock.</p>
+ *
+ * @see BPackage
+ * @see BPackageManagerService
  */
 public class ComponentResolver {
     public static final String TAG = "ComponentResolver";
@@ -52,9 +58,18 @@ public class ComponentResolver {
      */
     private final ArrayMap<String, BPackage.Provider> mProvidersByAuthority = new ArrayMap<>();
 
+    /**
+     * Constructs an empty ComponentResolver with no registered components.
+     */
     public ComponentResolver() {
     }
 
+    /**
+     * Registers all components (activities, services, providers, receivers) from
+     * the given package into the resolver indexes.
+     *
+     * @param pkg the package whose components to register
+     */
     void addAllComponents(BPackage pkg) {
         final ArrayList<BPackage.ActivityIntentInfo> newIntents = new ArrayList<>();
         synchronized (mLock) {
@@ -65,6 +80,11 @@ public class ComponentResolver {
         }
     }
 
+    /**
+     * Removes all components belonging to the given package from the resolver indexes.
+     *
+     * @param pkg the package whose components to unregister
+     */
     void removeAllComponents(BPackage pkg) {
         synchronized (mLock) {
             removeAllComponentsLocked(pkg);
@@ -185,7 +205,10 @@ public class ComponentResolver {
 
 
     /**
-     * Returns the given activity
+     * Returns the activity registered under the given component name.
+     *
+     * @param component the ComponentName of the activity to look up
+     * @return the Activity, or null if not found
      */
     BPackage.Activity getActivity(ComponentName component) {
         synchronized (mLock) {
@@ -194,7 +217,10 @@ public class ComponentResolver {
     }
 
     /**
-     * Returns the given provider
+     * Returns the content provider registered under the given component name.
+     *
+     * @param component the ComponentName of the provider to look up
+     * @return the Provider, or null if not found
      */
     BPackage.Provider getProvider(ComponentName component) {
         synchronized (mLock) {
@@ -203,7 +229,10 @@ public class ComponentResolver {
     }
 
     /**
-     * Returns the given receiver
+     * Returns the broadcast receiver registered under the given component name.
+     *
+     * @param component the ComponentName of the receiver to look up
+     * @return the Activity (receiver), or null if not found
      */
     BPackage.Activity getReceiver(ComponentName component) {
         synchronized (mLock) {
@@ -212,7 +241,10 @@ public class ComponentResolver {
     }
 
     /**
-     * Returns the given service
+     * Returns the service registered under the given component name.
+     *
+     * @param component the ComponentName of the service to look up
+     * @return the Service, or null if not found
      */
     BPackage.Service getService(ComponentName component) {
         synchronized (mLock) {
@@ -220,12 +252,31 @@ public class ComponentResolver {
         }
     }
 
+    /**
+     * Queries all registered activities matching the given intent.
+     *
+     * @param intent        the intent to match against activity intent filters
+     * @param resolvedType  the MIME type resolved from the intent's data
+     * @param flags         option flags (e.g., MATCH_DEFAULT_ONLY)
+     * @param userId        the virtual user ID
+     * @return a list of matching ResolveInfo entries
+     */
     List<ResolveInfo> queryActivities(Intent intent, String resolvedType, int flags, int userId) {
         synchronized (mLock) {
             return mActivities.queryIntent(intent, resolvedType, flags, userId);
         }
     }
 
+    /**
+     * Queries a specific set of activities (from one package) matching the given intent.
+     *
+     * @param intent        the intent to match against activity intent filters
+     * @param resolvedType  the MIME type resolved from the intent's data
+     * @param flags         option flags
+     * @param activities    the specific activity list to search within
+     * @param userId        the virtual user ID
+     * @return a list of matching ResolveInfo entries, or null if activities is null
+     */
     List<ResolveInfo> queryActivities(Intent intent, String resolvedType, int flags,
                                       List<BPackage.Activity> activities, int userId) {
         synchronized (mLock) {
@@ -234,12 +285,31 @@ public class ComponentResolver {
         }
     }
 
+    /**
+     * Queries all registered providers matching the given intent.
+     *
+     * @param intent        the intent to match against provider intent filters
+     * @param resolvedType  the MIME type resolved from the intent's data
+     * @param flags         option flags
+     * @param userId        the virtual user ID
+     * @return a list of matching ResolveInfo entries
+     */
     List<ResolveInfo> queryProviders(Intent intent, String resolvedType, int flags, int userId) {
         synchronized (mLock) {
             return mProviders.queryIntent(intent, resolvedType, flags, userId);
         }
     }
 
+    /**
+     * Queries a specific set of providers (from one package) matching the given intent.
+     *
+     * @param intent        the intent to match against provider intent filters
+     * @param resolvedType  the MIME type resolved from the intent's data
+     * @param flags         option flags
+     * @param providers     the specific provider list to search within
+     * @param userId        the virtual user ID
+     * @return a list of matching ResolveInfo entries, or null if providers is null
+     */
     List<ResolveInfo> queryProviders(Intent intent, String resolvedType, int flags,
                                      List<BPackage.Provider> providers, int userId) {
         synchronized (mLock) {
@@ -247,6 +317,16 @@ public class ComponentResolver {
         }
     }
 
+    /**
+     * Queries providers by process name and optional metadata key. Used by
+     * {@code queryContentProviders()} to find all providers running in a given process.
+     *
+     * @param processName the process name to filter by, or null to match all
+     * @param metaDataKey an optional metadata key that must be present, or null to skip
+     * @param flags       additional option flags
+     * @param userId      the virtual user ID
+     * @return a list of matching ProviderInfo entries
+     */
     List<ProviderInfo> queryProviders(String processName, String metaDataKey, int flags,
                                       int userId) {
         List<ProviderInfo> providerList = new ArrayList<>();
@@ -281,6 +361,14 @@ public class ComponentResolver {
         return providerList;
     }
 
+    /**
+     * Looks up a single content provider by its authority string.
+     *
+     * @param authority the content provider authority to resolve
+     * @param flags     additional option flags
+     * @param userId    the virtual user ID
+     * @return the ProviderInfo, or null if no provider matches the authority
+     */
     ProviderInfo queryProvider(String authority, int flags, int userId) {
         synchronized (mLock) {
             final BPackage.Provider p = mProvidersByAuthority.get(authority);
@@ -292,12 +380,31 @@ public class ComponentResolver {
         }
     }
 
+    /**
+     * Queries all registered broadcast receivers matching the given intent.
+     *
+     * @param intent        the intent to match against receiver intent filters
+     * @param resolvedType  the MIME type resolved from the intent's data
+     * @param flags         option flags
+     * @param userId        the virtual user ID
+     * @return a list of matching ResolveInfo entries
+     */
     List<ResolveInfo> queryReceivers(Intent intent, String resolvedType, int flags, int userId) {
         synchronized (mLock) {
             return mReceivers.queryIntent(intent, resolvedType, flags, userId);
         }
     }
 
+    /**
+     * Queries a specific set of receivers (from one package) matching the given intent.
+     *
+     * @param intent        the intent to match against receiver intent filters
+     * @param resolvedType  the MIME type resolved from the intent's data
+     * @param flags         option flags
+     * @param receivers     the specific receiver list to search within
+     * @param userId        the virtual user ID
+     * @return a list of matching ResolveInfo entries, or null if receivers is null
+     */
     List<ResolveInfo> queryReceivers(Intent intent, String resolvedType, int flags,
                                      List<BPackage.Activity> receivers, int userId) {
         synchronized (mLock) {
@@ -305,12 +412,31 @@ public class ComponentResolver {
         }
     }
 
+    /**
+     * Queries all registered services matching the given intent.
+     *
+     * @param intent        the intent to match against service intent filters
+     * @param resolvedType  the MIME type resolved from the intent's data
+     * @param flags         option flags
+     * @param userId        the virtual user ID
+     * @return a list of matching ResolveInfo entries
+     */
     List<ResolveInfo> queryServices(Intent intent, String resolvedType, int flags, int userId) {
         synchronized (mLock) {
             return mServices.queryIntent(intent, resolvedType, flags, userId);
         }
     }
 
+    /**
+     * Queries a specific set of services (from one package) matching the given intent.
+     *
+     * @param intent        the intent to match against service intent filters
+     * @param resolvedType  the MIME type resolved from the intent's data
+     * @param flags         option flags
+     * @param services      the specific service list to search within
+     * @param userId        the virtual user ID
+     * @return a list of matching ResolveInfo entries, or null if services is null
+     */
     List<ResolveInfo> queryServices(Intent intent, String resolvedType, int flags,
                                     List<BPackage.Service> services, int userId) {
         synchronized (mLock) {

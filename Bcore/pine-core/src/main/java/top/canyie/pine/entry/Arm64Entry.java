@@ -4,6 +4,15 @@ import top.canyie.pine.Pine;
 import top.canyie.pine.utils.Three;
 
 /**
+ * Entry point bridge for ARM64 (aarch64) hooked methods.
+ * <p>
+ * When a method is hooked on ARM64, its entry point is redirected to one of the typed bridge
+ * methods (e.g. {@code voidBridge}, {@code intBridge}) in this class. The bridge extracts
+ * arguments from ARM64 registers (x0-x7 for general-purpose, d0-d7 for floating-point) and
+ * the stack according to the AArch64 calling convention, reconstructs them as Java objects,
+ * and delegates to {@link Pine#handleCall(Pine.HookRecord, Object, Object[])} for callback invocation.
+ * </p>
+ *
  * @author canyie
  */
 public final class Arm64Entry {
@@ -69,14 +78,15 @@ public final class Arm64Entry {
     }
 
     /**
-     * Bridge handler for arm64.
-     * Note: This method should never be inlined to
-     * the direct bridge method (intBridge, objectBridge, etc.),
-     * otherwise, it will crash when executing a hooked proxy method (it's an unknown bug).
-     * More info about the bug:
-     * App crash caused by SIGSEGV, fault addr 0x0, pc=lr=0,
-     * but the lr register is not 0 at the entry/exit of the proxy method.
-     * Is the lr register assigned to 0 after the proxy method returns?
+     * Bridge handler for ARM64. Extracts arguments from registers and stack, converts them
+     * to Java objects, and delegates to {@link Pine#handleCall}.
+     * <p>
+     * ARM64 calling convention (AAPCS64): first 8 integer/pointer args in x0-x7 (x0 = this for
+     * instance methods), first 8 floating-point args in d0-d7, additional args on stack.
+     * Note: object references are 32-bit in ART even on 64-bit platforms.
+     * </p>
+     * Note: This method must never be inlined into the typed bridge methods to avoid a crash
+     * when hooking proxy methods (known bug with lr register corruption).
      */
     private static Object handleBridge(long artMethod, long originExtras, long sp,
                                        long x4, long x5, long x6, long x7) throws Throwable {
@@ -84,6 +94,7 @@ public final class Arm64Entry {
         long extras = Pine.cloneExtras(originExtras);
         Pine.log("handleBridge: artMethod=%#x originExtras=%#x extras=%#x sp=%#x", artMethod, originExtras, extras, sp);
         Pine.HookRecord hookRecord = Pine.getHookRecord(artMethod);
+        // Extract x1-x3 from extras, x4-x7 passed directly, stack and fp registers via native
         Three<long[], long[], double[]> three = getArgs(hookRecord, extras, sp, x4, x5, x6, x7);
         long[] coreRegisters = three.a;
         long[] stack = three.b;
@@ -92,12 +103,14 @@ public final class Arm64Entry {
         Object receiver;
         Object[] args;
 
+        // Track position in core registers, stack, and fp registers independently
         int crIndex = 0, stackIndex = 0, fprIndex = 0;
         long thread = Pine.currentArtThread0();
 
         if (hookRecord.isStatic) {
             receiver = null;
         } else {
+            // For instance methods, x0 (index 0) holds the receiver; ART object refs are 32-bit
             receiver = Pine.getObject(thread, coreRegisters[0]);
             crIndex = 1;
             stackIndex = 1;
@@ -158,6 +171,20 @@ public final class Arm64Entry {
         return Pine.handleCall(hookRecord, receiver, args);
     }
 
+    /**
+     * Calculates the required array sizes for core registers, stack, and floating-point registers,
+     * calls the native method to fill x1-x3 and stack/fp values, then manually assigns x4-x7
+     * which are passed as direct method parameters.
+     *
+     * @param hookRecord the hook record containing parameter type information.
+     * @param extras     the native extras pointer with saved register state.
+     * @param sp         the stack pointer at call time.
+     * @param x4         the x4 register value (5th general-purpose arg or callee).
+     * @param x5         the x5 register value.
+     * @param x6         the x6 register value.
+     * @param x7         the x7 register value.
+     * @return a {@link Three} containing core registers, stack values, and fp register values.
+     */
     private static Three<long[], long[], double[]> getArgs(Pine.HookRecord hookRecord, long extras, long sp,
                                                          long x4, long x5, long x6, long x7) {
         // TODO: Cache these values
@@ -218,8 +245,10 @@ public final class Arm64Entry {
         double[] fpRegisters = fprLength != 0 ? new double[fprLength] : EMPTY_DOUBLE_ARRAY;
         Pine.getArgsArm64(extras, sp, typeWides, coreRegisters, stack, fpRegisters);
 
+        // Manually assign x4-x7 (passed as direct parameters) into the coreRegisters array.
+        // x1-x3 are already filled by the native getArgsArm64 call above.
+        // Using do-while(false) as a labeled break pattern for sequential assignment.
         do {
-            // x1-x3 are restored in Pine.getArgs64
             if (crLength < 4) break;
             coreRegisters[3] = x4;
             if (crLength == 4) break;

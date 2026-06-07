@@ -77,6 +77,12 @@ public class XResources extends XResourcesSuperClass {
 	private String mResDir;
 	private String mPackageName;
 
+	/**
+	 * Creates a new XResources instance. The object must be initialized with
+	 * {@link #initObject(String)} before use.
+	 *
+	 * @param classLoader the class loader for resolving resource references
+	 */
 	public XResources(ClassLoader classLoader) {
 		super();
 	}

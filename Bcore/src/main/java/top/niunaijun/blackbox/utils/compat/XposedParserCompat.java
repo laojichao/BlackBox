@@ -16,15 +16,25 @@ import top.niunaijun.blackbox.entity.pm.InstalledModule;
 import top.niunaijun.blackbox.utils.CloseUtils;
 
 /**
- * Created by Milk on 5/2/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Compatibility utility for detecting and parsing Xposed/LSPosed modules.
+ * <p>
+ * Xposed modules declare their entry point class in an {@code assets/xposed_init} file
+ * inside the APK. This class reads that file to determine whether an APK is an Xposed
+ * module and, if so, extracts the module metadata (name, description, main class) from
+ * the {@link ApplicationInfo}.
  */
 public class XposedParserCompat {
 
+    /**
+     * Parses an installed Xposed module into an {@link InstalledModule} descriptor.
+     * <p>
+     * Reads the module name, description (from {@code xposeddescription} metadata),
+     * and main entry class (from {@code assets/xposed_init}).
+     *
+     * @param applicationInfo the {@link ApplicationInfo} of the candidate module package
+     * @return an {@link InstalledModule} with the parsed metadata, or {@code null} if the
+     *         package is not a valid Xposed module (missing {@code xposed_init} or metadata)
+     */
     public static InstalledModule parseModule(ApplicationInfo applicationInfo) {
         try {
             PackageManager packageManager = BlackBoxCore.getPackageManager();
@@ -40,6 +50,14 @@ public class XposedParserCompat {
         }
     }
 
+    /**
+     * Checks whether the given APK file is an Xposed module by looking for
+     * {@code assets/xposed_init} inside the archive.
+     *
+     * @param file the absolute path to the APK file to check
+     * @return {@code true} if the APK contains a valid {@code xposed_init} asset, {@code false}
+     *         otherwise (including on I/O errors)
+     */
     public static boolean isXPModule(String file) {
         try {
             String s = readMain(file);

@@ -23,9 +23,12 @@ import top.niunaijun.blackboxa.util.toast
 import top.niunaijun.blackboxa.view.base.BaseActivity
 
 /**
+ * Activity for managing per-app fake location settings in the virtual environment.
  *
- * @Author: BlackBoxing
- * @CreateDate: 2022/3/14
+ * Displays a searchable list of installed applications where users can set custom
+ * GPS coordinates for individual apps or disable fake location. Tapping an app opens
+ * [FollowMyLocationOverlay] for map-based location picking. Long-pressing shows an
+ * option to disable fake location for that app.
  */
 class FakeManagerActivity : BaseActivity() {
     val TAG: String = "FakeManagerActivity"
@@ -65,6 +68,12 @@ class FakeManagerActivity : BaseActivity() {
         initViewModel()
     }
 
+    /**
+     * Shows a confirmation dialog and disables fake location for the specified app.
+     *
+     * @param item the [FakeLocationBean] of the app to disable fake location for.
+     * @param position the adapter position of the item in the RecyclerView.
+     */
     private fun disableFakeLocation(item: FakeLocationBean,position:Int) {
         MaterialDialog(this).show {
             title(R.string.close_fake_location)
@@ -79,6 +88,9 @@ class FakeManagerActivity : BaseActivity() {
         }
     }
 
+    /**
+     * Sets up the search view to filter the app list by name or package name as the user types.
+     */
     private fun initSearchView() {
         viewBinding.searchView.setOnQueryTextListener(object :
             SimpleSearchView.OnQueryTextListener {
@@ -98,6 +110,9 @@ class FakeManagerActivity : BaseActivity() {
         })
     }
 
+    /**
+     * Initializes the ViewModel, observes app list LiveData, and triggers the initial data load.
+     */
     private fun initViewModel() {
         viewModel = ViewModelProvider(this, InjectionUtil.getFakeLocationFactory()).get(
             FakeLocationViewModel::class.java
@@ -119,6 +134,9 @@ class FakeManagerActivity : BaseActivity() {
         }
     }
 
+    /**
+     * Triggers loading the installed app list from the ViewModel for the current user.
+     */
     private fun loadAppList() {
         viewBinding.stateView.showLoading()
         viewModel.getInstallAppList(currentUserID())
@@ -145,6 +163,11 @@ class FakeManagerActivity : BaseActivity() {
         }
 
 
+    /**
+     * Filters the displayed app list by matching the query against app names and package names.
+     *
+     * @param newText the search query string to filter by.
+     */
     private fun filterApp(newText: String) {
         val newList = this.appList.filter {
             it.name.contains(newText, true) or it.packageName.contains(newText, true)
@@ -152,6 +175,12 @@ class FakeManagerActivity : BaseActivity() {
         mAdapter.setItems(newList)
     }
 
+    /**
+     * Sets the activity result with the selected source and finishes the activity.
+     * Hides the soft keyboard before finishing.
+     *
+     * @param source the selected package name or file path to return to the caller.
+     */
     private fun finishWithResult(source: String) {
         intent.putExtra("source", source)
         setResult(Activity.RESULT_OK, intent)
@@ -180,6 +209,11 @@ class FakeManagerActivity : BaseActivity() {
 
 
     companion object {
+        /**
+         * Starts [FakeManagerActivity] from the given context.
+         *
+         * @param context the context used to launch the activity.
+         */
         fun start(context: Context) {
             val intent = Intent(context, FakeManagerActivity::class.java)
             context.startActivity(intent)

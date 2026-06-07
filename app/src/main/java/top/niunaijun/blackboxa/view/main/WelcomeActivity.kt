@@ -7,6 +7,14 @@ import androidx.lifecycle.ViewModelProvider
 import top.niunaijun.blackboxa.util.InjectionUtil
 import top.niunaijun.blackboxa.view.list.ListViewModel
 
+/**
+ * Splash/welcome screen that serves as the application entry point.
+ *
+ * On creation, this activity triggers a preview scan of installed virtual apps via
+ * [ListViewModel] and immediately redirects to [MainActivity]. It also handles
+ * re-entry via [onNewIntent] for single-top launch scenarios, ensuring the user
+ * always lands on the main screen.
+ */
 class WelcomeActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent?) {

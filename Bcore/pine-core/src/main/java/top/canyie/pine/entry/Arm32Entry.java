@@ -8,6 +8,15 @@ import top.canyie.pine.utils.Primitives;
 import top.canyie.pine.utils.Three;
 
 /**
+ * Entry point bridge for ARM32 (armeabi-v7a) hooked methods.
+ * <p>
+ * When a method is hooked on ARM32, its entry point is redirected to one of the typed bridge
+ * methods (e.g. {@code voidBridge}, {@code intBridge}) in this class. The bridge extracts
+ * arguments from ARM registers and the stack according to the ARM calling convention (including
+ * hard-float ABI on Android 6.0+), reconstructs them as Java objects, and delegates to
+ * {@link Pine#handleCall(Pine.HookRecord, Object, Object[])} for callback invocation.
+ * </p>
+ *
  * @author canyie
  */
 public final class Arm32Entry {
@@ -64,20 +73,21 @@ public final class Arm32Entry {
     }
 
     /**
-     * Bridge handler for arm32.
-     * Note: This method should never be inlined to
-     * the direct bridge method (intBridge, objectBridge, etc.),
-     * otherwise, it will crash when executing a hooked proxy method (it's an unknown bug).
-     * More info about the bug:
-     * App crash caused by SIGSEGV, fault addr 0x0, pc=lr=0,
-     * but the lr register is not 0 at the entry/exit of the proxy method.
-     * Is the lr register assigned to 0 after the proxy method returns?
+     * Bridge handler for ARM32. Extracts arguments from registers and stack, converts them
+     * to Java objects, and delegates to {@link Pine#handleCall}.
+     * <p>
+     * ARM32 calling convention (AAPCS): first 4 word-sized args in r0-r3 (r0 = this for instance methods),
+     * additional args on stack. With hard-float ABI (Android 6.0+), floating-point args use s0-s15/d0-d15.
+     * </p>
+     * Note: This method must never be inlined into the typed bridge methods to avoid a crash
+     * when hooking proxy methods (known bug with lr register corruption).
      */
     private static Object handleBridge(int artMethod, int originExtras, int sp) throws Throwable {
         // Clone the extras and unlock to minimize the time we hold the lock
         int extras = (int) Pine.cloneExtras(originExtras);
         Pine.log("handleBridge: artMethod=%#x originExtras=%#x extras=%#x sp=%#x", artMethod, originExtras, extras, sp);
         Pine.HookRecord hookRecord = Pine.getHookRecord(artMethod);
+        // Extract core registers (r1-r3), stack args, and floating-point registers in one pass
         Three<int[], int[], float[]> three = getArgs(hookRecord, extras, sp);
         int[] coreRegisters = three.a;
         int[] stack = three.b;
@@ -87,6 +97,7 @@ public final class Arm32Entry {
         Object receiver;
         Object[] args;
 
+        // Track position in core registers, stack, and fp registers independently
         int crIndex = 0;
         int stackIndex = 0;
         int floatIndex = 0;
@@ -95,6 +106,7 @@ public final class Arm32Entry {
         if (hookRecord.isStatic) {
             receiver = null;
         } else {
+            // For instance methods, r0 (index 0) holds the receiver
             receiver = Pine.getObject(thread, coreRegisters[0]);
             crIndex = 1;
             stackIndex = 1;
@@ -207,6 +219,15 @@ public final class Arm32Entry {
         return Pine.handleCall(hookRecord, receiver, args);
     }
 
+    /**
+     * Calculates the required array sizes for core registers, stack, and fp registers,
+     * then calls the native method to fill them with the actual argument values.
+     *
+     * @param hookRecord the hook record containing parameter type information.
+     * @param extras     the native extras pointer with saved register state.
+     * @param sp         the stack pointer at call time.
+     * @return a {@link Three} containing core registers, stack values, and fp register values.
+     */
     private static Three<int[], int[], float[]> getArgs(Pine.HookRecord hookRecord, int extras, int sp) {
         // TODO: Cache these values
         int crLength = hookRecord.isStatic ? 0 : 1/*this*/;

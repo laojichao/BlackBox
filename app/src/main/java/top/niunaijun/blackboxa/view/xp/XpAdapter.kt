@@ -10,10 +10,11 @@ import top.niunaijun.blackboxa.databinding.ItemXpBinding
 
 
 /**
+ * RecyclerView adapter factory for rendering Xposed module items.
  *
- * @Description:
- * @Author: wukaicheng
- * @CreateDate: 2021/5/2 21:32
+ * Creates [XpVH] view holders that display each module's icon, name, description,
+ * and enable/disable toggle switch. The toggle switch propagates click events to
+ * the parent RecyclerView item click listener for state management.
  */
 class XpAdapter : RVHolderFactory() {
 
@@ -21,6 +22,14 @@ class XpAdapter : RVHolderFactory() {
         return XpVH(inflate(R.layout.item_xp, parent))
     }
 
+    /**
+     * ViewHolder for rendering individual Xposed module items.
+     *
+     * Displays the module's icon, name, description, and an enable/disable switch.
+     * Toggle changes propagate as item click events for upstream state management.
+     *
+     * @param itemView the inflated item view
+     */
     class XpVH(itemView: View) : RVHolder<XpModuleInfo>(itemView) {
 
         private val binding = ItemXpBinding.bind(itemView)

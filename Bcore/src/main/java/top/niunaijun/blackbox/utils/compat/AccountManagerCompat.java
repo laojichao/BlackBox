@@ -2,6 +2,14 @@ package top.niunaijun.blackbox.utils.compat;
 
 import android.accounts.AccountManager;
 
+/**
+ * Compatibility wrapper for {@link android.accounts.AccountManager} constants.
+ * <p>
+ * Provides access to account manager bundle keys and error codes that may not be
+ * available as public constants on all API levels, including authentication failure
+ * notification flags, caller package name keys, custom token expiry, and error codes
+ * for restricted or disabled account management.
+ */
 public class AccountManagerCompat {
 
     /**
@@ -20,8 +28,10 @@ public class AccountManagerCompat {
      */
     public static final String KEY_ANDROID_PACKAGE_NAME = "androidPackageName";
 
+    /** Error code indicating the user is restricted from performing account operations. */
     public static final int ERROR_CODE_USER_RESTRICTED = 100;
 
+    /** Error code indicating account management is disabled for the given account type. */
     public static final int ERROR_CODE_MANAGEMENT_DISABLED_FOR_ACCOUNT_TYPE = 101;
 
     /**

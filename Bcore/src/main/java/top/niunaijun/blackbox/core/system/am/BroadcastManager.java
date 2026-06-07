@@ -20,7 +20,13 @@ import top.niunaijun.blackbox.proxy.ProxyBroadcastReceiver;
 import top.niunaijun.blackbox.utils.Slog;
 
 /**
- * Created by BlackBox on 2022/2/28.
+ * Manages broadcast receiver registration and dispatching within the virtual environment.
+ * Virtualizes the Android broadcast system by registering proxy {@link BroadcastReceiver} instances
+ * on the host that forward broadcasts to virtual app receivers.
+ *
+ * <p>Handles broadcast timeout enforcement (default 9 seconds) and automatically unregisters
+ * receivers when their package is uninstalled. Implements {@link PackageMonitor} to track
+ * package install/uninstall events.</p>
  */
 public class BroadcastManager implements PackageMonitor {
     public static final String TAG = "BroadcastManager";
@@ -53,6 +59,13 @@ public class BroadcastManager implements PackageMonitor {
         }
     };
 
+    /**
+     * Creates or returns the singleton {@link BroadcastManager} instance.
+     *
+     * @param ams the virtual activity manager service
+     * @param pms the virtual package manager service
+     * @return the singleton BroadcastManager instance
+     */
     public static BroadcastManager startSystem(BActivityManagerService ams, BPackageManagerService pms) {
         if (sBroadcastManager == null) {
             synchronized (BroadcastManager.class) {
@@ -64,11 +77,21 @@ public class BroadcastManager implements PackageMonitor {
         return sBroadcastManager;
     }
 
+    /**
+     * Constructs a new BroadcastManager with references to the activity and package managers.
+     *
+     * @param ams the virtual activity manager service
+     * @param pms the virtual package manager service
+     */
     public BroadcastManager(BActivityManagerService ams, BPackageManagerService pms) {
         mAms = ams;
         mPms = pms;
     }
 
+    /**
+     * Initializes the broadcast manager by registering proxy receivers for all installed
+     * packages and subscribing to package install/uninstall events.
+     */
     public void startup() {
         mPms.addPackageMonitor(this);
         List<BPackageSettings> bPackageSettings = mPms.getBPackageSettings();
@@ -101,6 +124,12 @@ public class BroadcastManager implements PackageMonitor {
         broadcastReceivers.add(receiver);
     }
 
+    /**
+     * Registers a pending broadcast and starts a timeout timer. If the broadcast is not
+     * finished within {@link #TIMEOUT} milliseconds, it is automatically completed.
+     *
+     * @param pendingResultData the pending result data for the broadcast
+     */
     public void sendBroadcast(PendingResultData pendingResultData) {
         synchronized (mReceiversData) {
             // Slog.d(TAG, "sendBroadcast: " + pendingResultData);
@@ -110,6 +139,11 @@ public class BroadcastManager implements PackageMonitor {
         }
     }
 
+    /**
+     * Marks a broadcast as finished and cancels its timeout timer.
+     *
+     * @param data the pending result data of the completed broadcast
+     */
     public void finishBroadcast(PendingResultData data) {
         synchronized (mReceiversData) {
             // Slog.d(TAG, "finishBroadcast: " + data);
@@ -117,6 +151,13 @@ public class BroadcastManager implements PackageMonitor {
         }
     }
 
+    /**
+     * Handles package uninstallation by unregistering all proxy broadcast receivers for the package.
+     *
+     * @param packageName the uninstalled package name
+     * @param removeApp   true if the app is being fully removed
+     * @param userId      the virtual user ID
+     */
     @Override
     public void onPackageUninstalled(String packageName, boolean removeApp, int userId) {
         if (removeApp) {
@@ -136,6 +177,12 @@ public class BroadcastManager implements PackageMonitor {
         }
     }
 
+    /**
+     * Handles package installation by re-registering proxy broadcast receivers for the package.
+     *
+     * @param packageName the installed package name
+     * @param userId      the virtual user ID
+     */
     @Override
     public void onPackageInstalled(String packageName, int userId) {
         synchronized (mReceivers) {

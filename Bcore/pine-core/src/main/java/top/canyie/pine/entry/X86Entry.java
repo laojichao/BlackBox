@@ -4,6 +4,15 @@ import top.canyie.pine.Pine;
 import top.canyie.pine.utils.Primitives;
 
 /**
+ * Entry point bridge for x86 hooked methods.
+ * <p>
+ * When a method is hooked on x86, its entry point is redirected to one of the typed bridge
+ * methods (e.g. {@code voidBridge}, {@code intBridge}) in this class. The bridge extracts
+ * arguments from x86 registers and the stack according to the cdecl calling convention,
+ * reconstructs them as Java objects, and delegates to
+ * {@link Pine#handleCall(Pine.HookRecord, Object, Object[])} for callback invocation.
+ * </p>
+ *
  * @author canyie
  */
 public final class X86Entry {
@@ -51,6 +60,15 @@ public final class X86Entry {
         return handleBridge(artMethod, extras, ebx);
     }
 
+    /**
+     * Bridge handler for x86. Extracts arguments from the stack (cdecl convention),
+     * converts them to Java objects, and delegates to {@link Pine#handleCall}.
+     * <p>
+     * x86 calling convention (cdecl): all arguments are passed on the stack. The first
+     * argument is at [ebp+8] for instance methods (this pointer). Arguments are read as
+     * 32-bit integers and reinterpreted based on the parameter type.
+     * </p>
+     */
     private static Object handleBridge(int artMethod, int extras, int ebx) throws Throwable {
         Pine.log("handleBridge: artMethod=%#x extras=%#x ebx=%#x", artMethod, extras, ebx);
         Pine.HookRecord hookRecord = Pine.getHookRecord(artMethod);
@@ -107,6 +125,15 @@ public final class X86Entry {
         return Pine.handleCall(hookRecord, receiver, args);
     }
 
+    /**
+     * Calculates the required array size and calls the native method to extract all arguments
+     * as 32-bit int values from the x86 stack.
+     *
+     * @param hookRecord the hook record containing parameter type information.
+     * @param extras     the native extras pointer with saved register state.
+     * @param ebx        the ebx register value.
+     * @return an array of argument values represented as ints.
+     */
     private static int[] getArgsAsInts(Pine.HookRecord hookRecord, int extras, int ebx) {
         int len = hookRecord.isStatic ? 0 : 1/*this*/;
         Class<?>[] paramTypes = hookRecord.paramTypes;

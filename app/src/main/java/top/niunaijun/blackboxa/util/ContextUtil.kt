@@ -6,13 +6,14 @@ import android.net.Uri
 import android.provider.Settings
 
 /**
- *
- * @Description:
- * @Author: kotlinMiku
- * @CreateDate: 2022/4/17 16:32
+ * Utility object providing context-related extension functions.
  */
 object ContextUtil {
 
+    /**
+     * Opens the system application details settings screen for the current application.
+     * Launches with [Intent.FLAG_ACTIVITY_NEW_TASK] so it can be called from non-Activity contexts.
+     */
     fun Context.openAppSystemSettings() {
         startActivity(Intent().apply {
             action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS

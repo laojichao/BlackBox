@@ -13,10 +13,12 @@ import top.niunaijun.blackboxa.view.gms.GmsManagerActivity
 import top.niunaijun.blackboxa.view.xp.XpActivity
 
 /**
+ * Preference fragment that displays the application settings screen.
  *
- * @Description:
- * @Author: wukaicheng
- * @CreateDate: 2021/5/6 22:13
+ * Manages toggle preferences for Xposed module enabling/disabling, root detection hiding,
+ * Xposed framework hiding, daemon service control, and navigation to Xposed module management
+ * and GMS manager screens. Changes to hiding and daemon settings trigger a restart notification
+ * via toast, as the BlackBox engine must be re-initialized to apply them.
  */
 class SettingFragment : PreferenceFragmentCompat() {
 

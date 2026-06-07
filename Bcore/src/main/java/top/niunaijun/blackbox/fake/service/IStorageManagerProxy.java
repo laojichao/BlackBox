@@ -16,19 +16,27 @@ import top.niunaijun.blackbox.fake.hook.ProxyMethod;
 import top.niunaijun.blackbox.utils.compat.BuildCompat;
 
 /**
- * Created by Milk on 4/10/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * 此处无Bug
+ * Proxy for the Android storage/mount system service.
+ * <p>
+ * Intercepts storage volume list queries and directory creation operations,
+ * providing virtual storage paths specific to the current user in the virtual
+ * environment. Handles API differences between Oreo+ and older Android versions.
  */
 public class IStorageManagerProxy extends BinderInvocationStub {
 
+    /**
+     * Constructs a new proxy by acquiring the real mount/storage binder service.
+     */
     public IStorageManagerProxy() {
         super(BRServiceManager.get().getService("mount"));
     }
 
+    /**
+     * Returns the underlying storage manager service interface, selecting the
+     * appropriate implementation based on the Android API level.
+     *
+     * @return the real storage/mount service binder interface
+     */
     @Override
     protected Object getWho() {
         IInterface mount;
@@ -40,18 +48,43 @@ public class IStorageManagerProxy extends BinderInvocationStub {
         return mount;
     }
 
+    /**
+     * Injects this proxy into the system service registry.
+     *
+     * @param baseInvocation  the original service binder object
+     * @param proxyInvocation the proxy binder object to register
+     */
     @Override
     protected void inject(Object baseInvocation, Object proxyInvocation) {
         replaceSystemService("mount");
     }
 
+    /**
+     * Checks whether the current environment is invalid for this proxy.
+     *
+     * @return always {@code false}, indicating the environment is always valid
+     */
     @Override
     public boolean isBadEnv() {
         return false;
     }
 
+    /**
+     * Hook that intercepts {@code getVolumeList} and returns storage volumes
+     * specific to the virtual user, falling back to the real implementation on error.
+     */
     @ProxyMethod("getVolumeList")
     public static class GetVolumeList extends MethodHook {
+        /**
+         * Retrieves the volume list for the virtual user environment.
+         *
+         * @param who    the target object
+         * @param method the original method
+         * @param args   the method arguments (uid, packageName, flags)
+         * @return an array of {@link StorageVolume} for the virtual user,
+         *         or the original method result as fallback
+         * @throws Throwable if invocation fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             if (args == null) {
@@ -76,8 +109,19 @@ public class IStorageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /**
+     * Hook that intercepts {@code mkdirs} and returns 0 (success) without
+     * actually creating directories in the real filesystem.
+     */
     @ProxyMethod("mkdirs")
     public static class mkdirs extends MethodHook {
+        /**
+         * @param who    the target object
+         * @param method the original method
+         * @param args   the method arguments
+         * @return always 0
+         * @throws Throwable if invocation fails
+         */
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return 0;

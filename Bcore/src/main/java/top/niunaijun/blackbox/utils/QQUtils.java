@@ -6,9 +6,18 @@ import android.util.Log;
 import java.lang.reflect.Field;
 
 /**
- * Created by BlackBox on 2022/2/20.
+ * Utility class for applying runtime modifications to the QQ (Tencent Mobile QQ) application
+ * within the virtual environment. Uses reflection to modify QQ's internal logging configuration
+ * to enable verbose log output.
  */
 public class QQUtils {
+    /**
+     * Enables verbose log output for the QQ application by modifying its internal
+     * {@code UIN_REPORTLOG_LEVEL} field via reflection. Only takes effect when the
+     * application loaded by the given context is QQ.
+     *
+     * @param context the application context whose class loader has access to QQ classes
+     */
     public static void hackLog(Context context) {
         try {
             Class<?> aClass = context.getClassLoader().loadClass("com.tencent.qphone.base.util.QLog");

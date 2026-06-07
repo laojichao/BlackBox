@@ -30,13 +30,15 @@ import kotlin.math.abs
 
 
 /**
+ * Fragment that displays a grid of installed applications within a virtual user environment.
  *
- * @Description:
- * @Author: wukaicheng
- * @CreateDate: 2021/4/29 22:21
+ * Supports app launching, uninstalling, clearing data, stopping processes, drag-to-reorder,
+ * and desktop shortcut creation via a long-press context menu. Observes [AppsViewModel] LiveData
+ * for app list updates, operation results, and launch status.
  */
 class AppsFragment : Fragment() {
 
+    /** The virtual user ID whose installed apps are displayed. */
     var userID: Int = 0
 
     private lateinit var viewModel: AppsViewModel
@@ -99,7 +101,9 @@ class AppsFragment : Fragment() {
     }
 
     /**
-     * 拖拽优化
+     * Sets up touch interception on the RecyclerView to distinguish between
+     * tap (shows popup menu) and drag (dismisses popup menu) gestures,
+     * and to detect vertical scrolling for showing/hiding the floating button.
      */
     private fun interceptTouch() {
         val point = Point()
@@ -129,6 +133,13 @@ class AppsFragment : Fragment() {
         }
     }
 
+    /**
+     * Determines whether the touch event constitutes a drag movement.
+     *
+     * @param point the initial touch-down coordinates.
+     * @param e the current [MotionEvent] to compare against the initial point.
+     * @return true if the movement exceeds the 40px threshold in either axis.
+     */
     private fun isMove(point: Point, e: MotionEvent): Boolean {
         val max = 40
 
@@ -140,6 +151,13 @@ class AppsFragment : Fragment() {
         return xU > max || yU > max
     }
 
+    /**
+     * Detects vertical drag direction and toggles the floating button visibility
+     * on the parent [MainActivity] accordingly.
+     *
+     * @param point the initial touch-down coordinates.
+     * @param e the current [MotionEvent] to determine scroll direction.
+     */
     private fun isDownAndUp(point: Point, e: MotionEvent) {
         val min = 10
         val y = point.y
@@ -150,6 +168,12 @@ class AppsFragment : Fragment() {
         }
     }
 
+    /**
+     * Swaps items in the adapter list to reflect a drag-and-drop reordering operation.
+     *
+     * @param fromPosition the adapter position of the item being moved.
+     * @param toPosition the target adapter position to move the item to.
+     */
     private fun onItemMove(fromPosition:Int, toPosition:Int){
         if (fromPosition < toPosition) {
             for (i in fromPosition until toPosition) {
@@ -163,6 +187,10 @@ class AppsFragment : Fragment() {
         mAdapter.notifyItemMoved(fromPosition, toPosition)
     }
 
+    /**
+     * Registers a long-click listener on the adapter that shows a popup context menu
+     * with options to uninstall, clear data, force stop, or create a desktop shortcut.
+     */
     private fun setOnLongClick() {
         mAdapter.setItemLongClickListener { view, data, _ ->
             popupMenu = PopupMenu(requireContext(),view).also {
@@ -195,6 +223,10 @@ class AppsFragment : Fragment() {
             }
         }
     }
+    /**
+     * Initializes observers on ViewModel LiveData for app list, operation results,
+     * launch status, and sort order updates. Triggers initial data loading.
+     */
     private fun initData() {
         viewBinding.stateView.showLoading()
         viewModel.getInstalledApps(userID)
@@ -242,6 +274,11 @@ class AppsFragment : Fragment() {
         viewModel.launchLiveData.value = null
     }
 
+    /**
+     * Shows a confirmation dialog and uninstalls the given app from the virtual environment.
+     *
+     * @param info the [AppInfo] of the application to uninstall.
+     */
     private fun unInstallApk(info: AppInfo) {
         MaterialDialog(requireContext()).show {
             title(R.string.uninstall_app)
@@ -255,8 +292,9 @@ class AppsFragment : Fragment() {
     }
 
     /**
-     * 强行停止软件
-     * @param info AppInfo
+     * Shows a confirmation dialog and force-stops the given app in the virtual environment.
+     *
+     * @param info the [AppInfo] of the application to stop.
      */
     private fun stopApk(info: AppInfo) {
         MaterialDialog(requireContext()).show {
@@ -271,8 +309,9 @@ class AppsFragment : Fragment() {
     }
 
     /**
-     * 清除软件数据
-     * @param info AppInfo
+     * Shows a confirmation dialog and clears all data for the given app in the virtual environment.
+     *
+     * @param info the [AppInfo] of the application whose data will be cleared.
      */
     private fun clearApk(info: AppInfo) {
         MaterialDialog(requireContext()).show {
@@ -287,12 +326,20 @@ class AppsFragment : Fragment() {
     }
 
 
+    /**
+     * Triggers APK installation from the given source path into the current virtual user.
+     *
+     * @param source the file path or content URI of the APK to install.
+     */
     fun installApk(source: String) {
         showLoading()
         viewModel.install(source, userID)
     }
 
 
+    /**
+     * Notifies the parent [MainActivity] to re-scan the virtual user after an operation.
+     */
     private fun scanUser() {
         (requireActivity() as MainActivity).scanUser()
     }
@@ -311,7 +358,13 @@ class AppsFragment : Fragment() {
     }
 
 
-    companion object{
+    companion object {
+        /**
+         * Creates a new [AppsFragment] instance for the specified virtual user.
+         *
+         * @param userID the virtual user ID whose installed apps will be displayed.
+         * @return a new [AppsFragment] configured with the given user ID.
+         */
         fun newInstance(userID:Int): AppsFragment {
             val fragment = AppsFragment()
             val bundle = bundleOf("userID" to userID)

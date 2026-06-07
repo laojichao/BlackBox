@@ -1575,6 +1575,10 @@ public final class XposedHelpers {
 
 	/**
 	 * Returns the lowercase hex string representation of a file's MD5 hash sum.
+	 *
+	 * @param file the absolute path to the file
+	 * @return the MD5 hash as a lowercase hex string
+	 * @throws IOException if the file cannot be read
 	 */
 	public static String getMD5Sum(String file) throws IOException {
 		try {

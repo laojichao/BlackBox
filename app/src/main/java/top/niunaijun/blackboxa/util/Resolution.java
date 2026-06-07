@@ -16,6 +16,12 @@ import android.view.inputmethod.InputMethodManager;
 
 import java.lang.reflect.Field;
 
+/**
+ * Utility class for screen resolution and display metric conversions.
+ *
+ * Provides methods for querying screen dimensions, converting between dp/sp/px units,
+ * managing soft keyboard visibility, and detecting status/navigation bar sizes.
+ */
 public class Resolution {
     private static final String TAG = "UtilsScreen";
 
@@ -133,7 +139,10 @@ public class Resolution {
     ///////////////////////////////////////////////////////////////////////
 
     /**
-     * 获取屏幕密度
+     * Returns the screen density scale factor.
+     *
+     * @param context the context to retrieve display metrics from
+     * @return the screen density, or 0 if context is null
      */
     public static float getDensity(Context context) {
         float density = 0f;
@@ -149,7 +158,12 @@ public class Resolution {
     }
 
     /**
-     * 检查分辨率是否为本机
+     * Checks whether the given resolution matches the device's native screen resolution.
+     *
+     * @param context the activity context
+     * @param width   the expected width in pixels
+     * @param height  the expected height in pixels
+     * @return true if the given dimensions match the device screen
      */
     public static boolean checkPix(Activity context, int width, int height) {
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.JELLY_BEAN) {
@@ -162,28 +176,42 @@ public class Resolution {
     }
 
     /**
-     * 获取屏幕分辨率：宽
+     * Returns the screen width in pixels from display metrics.
+     *
+     * @param context the context to retrieve display metrics from
+     * @return the screen width in pixels
      */
     public static int getScreenPixWidth(Context context) {
         return context.getResources().getDisplayMetrics().widthPixels;
     }
 
     /**
-     * 获取屏幕分辨率：高
+     * Returns the screen height in pixels from display metrics.
+     *
+     * @param context the context to retrieve display metrics from
+     * @return the screen height in pixels
      */
     public static int getScreenPixHeight(Context context) {
         return context.getResources().getDisplayMetrics().heightPixels;
     }
 
     /**
-     * dipתpx
+     * Converts density-independent pixels (dp) to pixels (px).
+     *
+     * @param context the context to retrieve display metrics from
+     * @param dip     the value in dp to convert
+     * @return the equivalent value in pixels
      */
     public static int dipToPx(Context context, int dip) {
         return (int) (dip * context.getResources().getDisplayMetrics().density + 0.5f);
     }
 
     /**
-     * pxתdip
+     * Converts pixels (px) to density-independent pixels (dp).
+     *
+     * @param context the context to retrieve display metrics from
+     * @param pxValue the value in pixels to convert
+     * @return the equivalent value in dp
      */
     public static int pxToDip(Context context, float pxValue) {
         final float scale = context.getResources().getDisplayMetrics().density;
@@ -191,11 +219,11 @@ public class Resolution {
     }
 
     /**
-     * 将sp值转换为px值，保证文字大小不变
+     * Converts scale-independent pixels (sp) to pixels (px) for consistent text sizing.
      *
-     * @param context
-     * @param spValue
-     * @return
+     * @param context the context to retrieve display metrics from
+     * @param spValue the value in sp to convert
+     * @return the equivalent value in pixels
      */
     public static int sp2px(Context context, float spValue) {
         final float fontScale = context.getResources().getDisplayMetrics().scaledDensity;
@@ -203,7 +231,9 @@ public class Resolution {
     }
 
     /**
-     * 隐藏软键盘
+     * Hides the soft keyboard from the given view.
+     *
+     * @param view the view whose window token is used to hide the keyboard
      */
     public static void hideInputMethod(View view) {
         InputMethodManager imm = (InputMethodManager) view.getContext()
@@ -214,7 +244,9 @@ public class Resolution {
     }
 
     /**
-     * 显示软键盘
+     * Shows the soft keyboard for the given view.
+     *
+     * @param view the view to receive keyboard input
      */
     public static void showInputMethod(View view) {
         InputMethodManager imm = (InputMethodManager) view.getContext()
@@ -225,7 +257,10 @@ public class Resolution {
     }
 
     /**
-     * 多少时间后显示软键盘
+     * Shows the soft keyboard for the given view after a specified delay.
+     *
+     * @param view       the view to receive keyboard input
+     * @param delayMillis the delay in milliseconds before showing the keyboard
      */
     public static void showInputMethod(final View view, long delayMillis) {
         // 显示输入法
@@ -240,7 +275,10 @@ public class Resolution {
     }
 
     /**
-     * 判断手机是否在锁屏状态 true锁屏 false未锁屏
+     * Checks whether the device screen is currently unlocked.
+     *
+     * @param c the context to retrieve the keyguard service from
+     * @return true if the screen is unlocked, false if locked
      */
     public static boolean isScreenLocked(Context c) {
         KeyguardManager mKeyguardManager = (KeyguardManager) c
@@ -250,6 +288,12 @@ public class Resolution {
         return bResult;
     }
 
+    /**
+     * Returns the height of the system status bar in pixels.
+     *
+     * @param context the context to retrieve resources from
+     * @return the status bar height in pixels, or 38 as a fallback default
+     */
     public static int getBarHeight(Context context) {
         Class<?> c = null;
         Object obj = null;
@@ -270,6 +314,13 @@ public class Resolution {
 
     //http://stackoverflow.com/questions/20264268/how-to-get-height-and-width-of-navigation-bar-programmatically
     //获取屏幕下方导航栏高度
+    /**
+     * Returns the size of the system navigation bar at the bottom of the screen.
+     *
+     * @param context the context to retrieve display information from
+     * @return a Point where x is the navigation bar width and y is its height;
+     *         returns an empty Point if no navigation bar is present
+     */
     public static Point getNavigationBarSize(Context context) {
         Point appUsableSize = getScreenSize(context, null);
         Point realScreenSize = getRealScreenSize(context);
@@ -289,6 +340,12 @@ public class Resolution {
     }
 
 
+    /**
+     * Returns the real physical screen size in pixels, including any system decorations.
+     *
+     * @param context the context to retrieve the window manager from
+     * @return a Point representing the full screen resolution (x = width, y = height)
+     */
     public static Point getRealScreenSize(Context context) {
         WindowManager windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
         Display display = windowManager.getDefaultDisplay();
